@@ -81,11 +81,10 @@ export function ProjectForm({ onSubmit, initialData }: ProjectFormProps) {
   const handleFormSubmit = (data: ProjectFormData) => {
     const formDataWithMetrics = {
       ...data,
-      metrics: metrics.filter(m => m.name && m.value)
+      metrics: metrics.filter(m => m.name && m.value),
+      uploadedFile: uploadedFile
     };
-    console.log('Project data:', formDataWithMetrics);
-    console.log('Uploaded file:', uploadedFile);
-    onSubmit(data);
+    onSubmit(formDataWithMetrics as any);
   };
 
   return (

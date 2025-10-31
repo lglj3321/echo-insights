@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ProjectCard, Project } from "@/components/ProjectCard";
 import { ProjectForm } from "@/components/ProjectForm";
+import { MetricsSelectionDialog, MetricItem } from "@/components/MetricsSelectionDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -19,11 +20,15 @@ import {
 } from "@/components/ui/select";
 import { Plus, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Projects() {
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isMetricsDialogOpen, setIsMetricsDialogOpen] = useState(false);
+  const [pendingMetrics, setPendingMetrics] = useState<MetricItem[]>([]);
 
   // TODO: Remove mock data - replace with actual API data
   const mockProjects: Project[] = [
@@ -105,6 +110,68 @@ export default function Projects() {
 
   const projectTypes = ["Packaging", "Energy", "Sourcing", "Waste", "Water", "Logistics"];
 
+  const extractMetricsFromFile = (file: File): Promise<MetricItem[]> => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const fileName = file.name.toLowerCase();
+        const extractedMetrics: MetricItem[] = [];
+
+        if (fileName.endsWith('.csv') || fileName.endsWith('.xlsx')) {
+          extractedMetrics.push(
+            { name: "CO₂ Emissions Reduced", value: "3.2 Tons/Quarter", source: "file" },
+            { name: "Water Conservation", value: "1,250 Gallons/Month", source: "file" },
+            { name: "Energy Savings", value: "450 kWh/Month", source: "file" },
+            { name: "Waste Diverted", value: "85%", source: "file" }
+          );
+        } else if (fileName.endsWith('.pdf') || fileName.endsWith('.doc') || fileName.endsWith('.docx')) {
+          extractedMetrics.push(
+            { name: "Carbon Footprint Reduction", value: "2.8 Tons/Year", source: "file" },
+            { name: "Recycling Rate", value: "92%", source: "file" }
+          );
+        }
+
+        resolve(extractedMetrics);
+      }, 1000);
+    });
+  };
+
+  const handleProjectSubmit = async (data: any) => {
+    const userMetrics: MetricItem[] = (data.metrics || []).map((m: any) => ({
+      name: m.name,
+      value: m.value,
+      source: "user" as const
+    }));
+
+    let allMetrics = [...userMetrics];
+
+    if (data.uploadedFile) {
+      const fileMetrics = await extractMetricsFromFile(data.uploadedFile);
+      allMetrics = [...allMetrics, ...fileMetrics];
+    }
+
+    setIsCreateDialogOpen(false);
+    
+    if (allMetrics.length > 0) {
+      setPendingMetrics(allMetrics);
+      setIsMetricsDialogOpen(true);
+    } else {
+      console.log('Project created with no metrics:', data);
+      toast({
+        title: "Project Created",
+        description: "Your sustainability project has been created successfully.",
+      });
+    }
+  };
+
+  const handleMetricsConfirm = (selectedMetrics: MetricItem[]) => {
+    console.log('Final project with selected metrics:', selectedMetrics);
+    toast({
+      title: "Project Created",
+      description: `Your project has been created with ${selectedMetrics.length} metric${selectedMetrics.length !== 1 ? 's' : ''}.`,
+    });
+    setPendingMetrics([]);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -127,10 +194,7 @@ export default function Projects() {
                 <DialogTitle>Create New Project</DialogTitle>
               </DialogHeader>
               <ProjectForm
-                onSubmit={(data) => {
-                  console.log('Project created:', data);
-                  setIsCreateDialogOpen(false);
-                }}
+                onSubmit={handleProjectSubmit}
               />
             </DialogContent>
           </Dialog>
@@ -202,6 +266,13 @@ export default function Projects() {
           ))}
         </div>
       )}
+
+      <MetricsSelectionDialog
+        open={isMetricsDialogOpen}
+        onOpenChange={setIsMetricsDialogOpen}
+        metrics={pendingMetrics}
+        onSubmit={handleMetricsConfirm}
+      />
     </div>
   );
 }
