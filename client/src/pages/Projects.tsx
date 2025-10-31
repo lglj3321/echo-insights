@@ -3,6 +3,7 @@ import { ProjectCard, Project } from "@/components/ProjectCard";
 import { ProjectForm } from "@/components/ProjectForm";
 import { MetricsSelectionDialog, MetricItem } from "@/components/MetricsSelectionDialog";
 import { SimilarProjectsDialog } from "@/components/SimilarProjectsDialog";
+import { CategoryMetricsDialog, RecommendedMetric } from "@/components/CategoryMetricsDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -30,9 +31,11 @@ export default function Projects() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isMetricsDialogOpen, setIsMetricsDialogOpen] = useState(false);
   const [isSimilarProjectsDialogOpen, setIsSimilarProjectsDialogOpen] = useState(false);
+  const [isCategoryMetricsDialogOpen, setIsCategoryMetricsDialogOpen] = useState(false);
   const [pendingMetrics, setPendingMetrics] = useState<MetricItem[]>([]);
   const [pendingProjectData, setPendingProjectData] = useState<any>(null);
   const [similarProjects, setSimilarProjects] = useState<any[]>([]);
+  const [suggestedCategory, setSuggestedCategory] = useState<string>("Packaging");
 
   // TODO: Remove mock data - replace with actual API data
   const mockProjects: Project[] = [
@@ -272,8 +275,73 @@ export default function Projects() {
     setPendingProjectData(null);
   };
 
+  const categorizeProject = (projectData: any, selectedMetrics: MetricItem[]): string => {
+    const description = projectData.description.toLowerCase();
+    const metricNames = selectedMetrics.map(m => m.name.toLowerCase()).join(' ');
+    const allText = `${description} ${metricNames}`;
+
+    const categoryScores: Record<string, number> = {
+      Packaging: 0,
+      Energy: 0,
+      Sourcing: 0,
+      Waste: 0,
+      Water: 0,
+      Logistics: 0,
+    };
+
+    const keywords: Record<string, string[]> = {
+      Packaging: ['packaging', 'package', 'container', 'wrap', 'box', 'bottle', 'recyclable', 'biodegradable', 'plastic'],
+      Energy: ['energy', 'solar', 'renewable', 'power', 'electricity', 'kwh', 'efficiency', 'consumption', 'carbon'],
+      Sourcing: ['sourcing', 'supplier', 'local', 'supply chain', 'procurement', 'ingredients', 'materials', 'fair trade'],
+      Waste: ['waste', 'recycling', 'compost', 'landfill', 'disposal', 'zero waste', 'diversion'],
+      Water: ['water', 'conservation', 'recycling', 'wastewater', 'consumption', 'gallons', 'rainwater'],
+      Logistics: ['logistics', 'transport', 'delivery', 'fleet', 'vehicle', 'shipping', 'route', 'miles', 'electric vehicle'],
+    };
+
+    Object.entries(keywords).forEach(([category, words]) => {
+      words.forEach(keyword => {
+        if (allText.includes(keyword)) {
+          categoryScores[category] += 1;
+        }
+      });
+    });
+
+    const topCategory = Object.entries(categoryScores)
+      .sort(([, a], [, b]) => b - a)[0];
+
+    return topCategory[1] > 0 ? topCategory[0] : "Packaging";
+  };
+
   const handleProceedWithProject = () => {
-    finalizeProject();
+    const category = categorizeProject(pendingProjectData, pendingMetrics);
+    setSuggestedCategory(category);
+    setIsCategoryMetricsDialogOpen(true);
+  };
+
+  const handleCategoryMetricsSubmit = (category: string, additionalMetrics: RecommendedMetric[]) => {
+    const allMetrics = [
+      ...pendingMetrics,
+      ...additionalMetrics.map(m => ({
+        name: m.name,
+        value: m.value,
+        source: "recommended" as const
+      }))
+    ];
+
+    console.log('Final project created:', {
+      ...pendingProjectData,
+      category,
+      metrics: allMetrics
+    });
+
+    toast({
+      title: "Project Created Successfully",
+      description: `Your ${category} project has been created with ${allMetrics.length} metrics.`,
+    });
+
+    setPendingMetrics([]);
+    setPendingProjectData(null);
+    setIsCategoryMetricsDialogOpen(false);
   };
 
   return (
@@ -385,6 +453,14 @@ export default function Projects() {
         onMerge={handleMergeProject}
         onCancel={handleCancelProject}
         onProceed={handleProceedWithProject}
+      />
+
+      <CategoryMetricsDialog
+        open={isCategoryMetricsDialogOpen}
+        onOpenChange={setIsCategoryMetricsDialogOpen}
+        suggestedCategory={suggestedCategory}
+        existingMetrics={pendingMetrics.map(m => m.name)}
+        onSubmit={handleCategoryMetricsSubmit}
       />
     </div>
   );
