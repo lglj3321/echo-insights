@@ -2,6 +2,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { QrCode, Star, DollarSign, Leaf, TrendingUp } from "lucide-react";
+import { Link } from "wouter";
 
 export interface Project {
   id: string;
@@ -81,14 +82,15 @@ export function ProjectCard({ project, onGenerateQR, onViewDetails }: ProjectCar
         </div>
       </CardContent>
       <CardFooter className="flex gap-2 flex-wrap">
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={() => onViewDetails?.(project.id)}
-          data-testid={`button-view-${project.id}`}
-        >
-          View Details
-        </Button>
+        <Link href={`/project/${project.id}`}>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            data-testid={`button-view-${project.id}`}
+          >
+            View Details
+          </Button>
+        </Link>
         <Button 
           variant="default" 
           size="sm"

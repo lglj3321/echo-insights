@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/Dashboard";
 import Projects from "@/pages/Projects";
+import ProjectDetails from "@/pages/ProjectDetails";
 import Analytics from "@/pages/Analytics";
 import QRCodes from "@/pages/QRCodes";
 import Settings from "@/pages/Settings";
@@ -22,6 +23,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/projects" component={Projects} />
+      <Route path="/project/:id" component={ProjectDetails} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/goals" component={Goals} />
       <Route path="/qr-codes" component={QRCodes} />

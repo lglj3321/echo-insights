@@ -342,6 +342,8 @@ export default function Projects() {
     setPendingMetrics([]);
     setPendingProjectData(null);
     setIsCategoryMetricsDialogOpen(false);
+
+    window.location.href = '/project/new-project-id';
   };
 
   return (
