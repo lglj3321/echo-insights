@@ -256,13 +256,26 @@ export default function Projects() {
 
   const handleMergeProject = (projectId: string) => {
     const mergeWith = mockProjects.find(p => p.id === projectId);
-    console.log('Merging new project with:', mergeWith);
+    
+    // Store merge context in sessionStorage for the details page to pick up
+    sessionStorage.setItem('mergeContext', JSON.stringify({
+      mergedAt: new Date().toISOString(),
+      newProjectData: pendingProjectData,
+      newMetrics: pendingMetrics,
+      targetProjectId: projectId,
+      targetProjectTitle: mergeWith?.title,
+    }));
+    
     toast({
-      title: "Projects Merged",
-      description: `Your new project has been merged with "${mergeWith?.title}".`,
+      title: "Merging Projects",
+      description: `Redirecting to "${mergeWith?.title}" to integrate your new data.`,
     });
+    
     setPendingMetrics([]);
     setPendingProjectData(null);
+    
+    // Redirect to the target project's details page
+    window.location.href = `/project/${projectId}?merged=true`;
   };
 
   const handleCancelProject = () => {

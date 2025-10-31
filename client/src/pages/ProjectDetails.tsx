@@ -50,7 +50,15 @@ export default function ProjectDetails() {
   const projectId = params?.id || "1";
   const { toast } = useToast();
 
-  const [isAuthorized] = useState(true);
+  // Check if this is a merge scenario
+  const urlParams = new URLSearchParams(window.location.search);
+  const isMerged = urlParams.get('merged') === 'true';
+  const mergeContextStr = sessionStorage.getItem('mergeContext');
+  const mergeContext = mergeContextStr ? JSON.parse(mergeContextStr) : null;
+
+  // Grant authorization if user is merging their new project into this one
+  const [isAuthorized] = useState(true); // In real app, check user permissions OR merge context
+  const [showMergeBanner, setShowMergeBanner] = useState(isMerged && mergeContext);
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
   const [projectUpdates, setProjectUpdates] = useState<ProjectUpdate[]>([
     {
@@ -166,10 +174,101 @@ export default function ProjectDetails() {
     });
   };
 
+  const handleIntegrateMergeData = () => {
+    if (!mergeContext) return;
+
+    // Create an update entry for the merged data
+    const mergeUpdate: ProjectUpdate = {
+      period: new Date().getMonth() < 3 ? "Q1" : new Date().getMonth() < 6 ? "Q2" : new Date().getMonth() < 9 ? "Q3" : "Q4",
+      year: new Date().getFullYear().toString(),
+      timestamp: mergeContext.mergedAt,
+      notes: `Merged data from new project: "${mergeContext.newProjectData?.title || 'Untitled'}"`,
+      metricUpdates: [],
+      newMetrics: mergeContext.newMetrics.map((m: any) => ({
+        name: m.name,
+        value: m.value
+      })),
+    };
+
+    setProjectUpdates([...projectUpdates, mergeUpdate]);
+    
+    toast({
+      title: "Merge Completed",
+      description: `New project data has been integrated successfully.`,
+    });
+
+    // Clear merge context
+    sessionStorage.removeItem('mergeContext');
+    setShowMergeBanner(false);
+    
+    // Remove merged param from URL
+    window.history.replaceState({}, '', `/project/${projectId}`);
+  };
+
+  const handleCancelMerge = () => {
+    sessionStorage.removeItem('mergeContext');
+    setShowMergeBanner(false);
+    window.history.replaceState({}, '', `/project/${projectId}`);
+    
+    toast({
+      title: "Merge Cancelled",
+      description: "No data was integrated.",
+      variant: "destructive",
+    });
+  };
+
   const existingMetricNames = mockMetrics.map(m => m.name);
 
   return (
     <div className="space-y-6 max-w-7xl">
+      {showMergeBanner && mergeContext && (
+        <Card className="border-primary bg-primary/5">
+          <CardContent className="pt-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="default">Merge Pending</Badge>
+                  <h3 className="font-semibold">Ready to Integrate New Project Data</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  You've chosen to merge your new project "{mergeContext.newProjectData?.title}" into this existing project.
+                  Review the data below and click "Integrate Data" to add the new metrics and information to this project.
+                </p>
+                {mergeContext.newMetrics && mergeContext.newMetrics.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-sm font-medium mb-2">New Metrics to Add:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {mergeContext.newMetrics.map((metric: any, idx: number) => (
+                        <Badge key={idx} variant="secondary">
+                          {metric.name}: {metric.value}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCancelMerge}
+                  data-testid="button-cancel-merge"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleIntegrateMergeData}
+                  data-testid="button-integrate-merge"
+                >
+                  Integrate Data
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex items-center gap-4">
         <Link href="/projects">
           <Button variant="ghost" size="icon" data-testid="button-back">
