@@ -16,8 +16,12 @@ import {
   Download,
   Award,
   LineChart,
+  Upload,
+  Clock,
 } from "lucide-react";
 import { Link } from "wouter";
+import { ProjectUpdateDialog } from "@/components/ProjectUpdateDialog";
+import { useToast } from "@/hooks/use-toast";
 
 interface MetricScore {
   name: string;
@@ -32,11 +36,32 @@ interface MetricTypeWeight {
   metrics: MetricScore[];
 }
 
+interface ProjectUpdate {
+  period: string;
+  year: string;
+  timestamp: string;
+  notes?: string;
+  metricUpdates: { name: string; value: string }[];
+  newMetrics: { name: string; value: string }[];
+}
+
 export default function ProjectDetails() {
   const [, params] = useRoute("/project/:id");
   const projectId = params?.id || "1";
+  const { toast } = useToast();
 
   const [isAuthorized] = useState(true);
+  const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
+  const [projectUpdates, setProjectUpdates] = useState<ProjectUpdate[]>([
+    {
+      period: "Q4",
+      year: "2024",
+      timestamp: "2024-10-15T10:00:00Z",
+      notes: "Initial project creation",
+      metricUpdates: [],
+      newMetrics: [],
+    },
+  ]);
   const [metricWeights, setMetricWeights] = useState<Record<string, number>>({
     "Environmental Impact": 40,
     "Resource Efficiency": 30,
@@ -123,6 +148,26 @@ export default function ProjectDetails() {
     return "D";
   };
 
+  const handleProjectUpdate = (updateData: any) => {
+    const newUpdate: ProjectUpdate = {
+      period: updateData.period,
+      year: updateData.year,
+      timestamp: updateData.timestamp,
+      notes: updateData.notes,
+      metricUpdates: updateData.metricUpdates,
+      newMetrics: updateData.newMetrics,
+    };
+
+    setProjectUpdates([...projectUpdates, newUpdate]);
+    
+    toast({
+      title: "Project Updated",
+      description: `Data for ${updateData.period} ${updateData.year} has been added successfully.`,
+    });
+  };
+
+  const existingMetricNames = mockMetrics.map(m => m.name);
+
   return (
     <div className="space-y-6 max-w-7xl">
       <div className="flex items-center gap-4">
@@ -141,7 +186,7 @@ export default function ProjectDetails() {
             Created on {new Date(mockProject.createdAt).toLocaleDateString()}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Link href={`/project/${projectId}/forecast`}>
             <Button variant="default" data-testid="button-forecast">
               <LineChart className="h-4 w-4 mr-2" />
@@ -149,10 +194,20 @@ export default function ProjectDetails() {
             </Button>
           </Link>
           {isAuthorized && (
-            <Button variant="outline" data-testid="button-edit-project">
-              <Edit className="h-4 w-4 mr-2" />
-              Edit Project
-            </Button>
+            <>
+              <Button 
+                variant="secondary" 
+                onClick={() => setIsUpdateDialogOpen(true)}
+                data-testid="button-upload-data"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Upload New Data
+              </Button>
+              <Button variant="outline" data-testid="button-edit-project">
+                <Edit className="h-4 w-4 mr-2" />
+                Edit Project
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -218,8 +273,9 @@ export default function ProjectDetails() {
       </div>
 
       <Tabs defaultValue="metrics" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="metrics">Metrics & Scoring</TabsTrigger>
+          <TabsTrigger value="timeline">Timeline & Updates</TabsTrigger>
           <TabsTrigger value="description">Description & Files</TabsTrigger>
           <TabsTrigger value="settings">Weights & Settings</TabsTrigger>
         </TabsList>
@@ -256,6 +312,80 @@ export default function ProjectDetails() {
               </CardContent>
             </Card>
           ))}
+        </TabsContent>
+
+        <TabsContent value="timeline" className="space-y-4 mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Project Timeline
+                </CardTitle>
+                <Badge variant="outline">
+                  {projectUpdates.length} update{projectUpdates.length !== 1 ? 's' : ''}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {projectUpdates.map((update, idx) => (
+                  <div
+                    key={idx}
+                    className="relative pl-8 pb-8 border-l-2 border-muted last:pb-0"
+                    data-testid={`timeline-update-${idx}`}
+                  >
+                    <div className="absolute -left-2 top-0 w-4 h-4 rounded-full bg-primary" />
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="default">
+                          {update.period} {update.year}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(update.timestamp).toLocaleDateString()} at{' '}
+                          {new Date(update.timestamp).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      
+                      {update.notes && (
+                        <p className="text-sm text-muted-foreground">{update.notes}</p>
+                      )}
+
+                      {update.metricUpdates.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">Metric Updates:</p>
+                          <ul className="text-sm space-y-1">
+                            {update.metricUpdates.map((metric, mIdx) => (
+                              <li key={mIdx} className="text-muted-foreground">
+                                • {metric.name}: <span className="font-mono">{metric.value}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {update.newMetrics.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">New Metrics Added:</p>
+                          <ul className="text-sm space-y-1">
+                            {update.newMetrics.map((metric, mIdx) => (
+                              <li key={mIdx} className="text-muted-foreground">
+                                • {metric.name}: <span className="font-mono">{metric.value}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {idx === 0 && (
+                        <Badge variant="secondary" className="mt-2">Initial Creation</Badge>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="description" className="space-y-4 mt-6">
@@ -362,6 +492,14 @@ export default function ProjectDetails() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <ProjectUpdateDialog
+        open={isUpdateDialogOpen}
+        onOpenChange={setIsUpdateDialogOpen}
+        projectId={projectId}
+        existingMetrics={existingMetricNames}
+        onSubmit={handleProjectUpdate}
+      />
     </div>
   );
 }
