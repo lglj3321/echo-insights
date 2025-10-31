@@ -20,6 +20,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Upload, FileText } from "lucide-react";
+import { useState } from "react";
 
 const projectSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
@@ -39,6 +41,8 @@ interface ProjectFormProps {
 }
 
 export function ProjectForm({ onSubmit, initialData }: ProjectFormProps) {
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  
   const form = useForm<ProjectFormData>({
     resolver: zodResolver(projectSchema),
     defaultValues: {
@@ -52,6 +56,17 @@ export function ProjectForm({ onSubmit, initialData }: ProjectFormProps) {
     },
   });
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setUploadedFile(e.target.files[0]);
+    }
+  };
+
+  const handleFormSubmit = (data: ProjectFormData) => {
+    console.log('Uploaded file:', uploadedFile);
+    onSubmit(data);
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -62,7 +77,7 @@ export function ProjectForm({ onSubmit, initialData }: ProjectFormProps) {
       </CardHeader>
       <CardContent>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
                 control={form.control}
@@ -205,6 +220,47 @@ export function ProjectForm({ onSubmit, initialData }: ProjectFormProps) {
                   </FormItem>
                 )}
               />
+            </div>
+
+            <div className="space-y-2">
+              <FormLabel>Upload Supporting Documents (Optional)</FormLabel>
+              <div className="flex items-center gap-4">
+                <label
+                  htmlFor="file-upload"
+                  className="flex items-center justify-center gap-2 px-4 h-9 rounded-md border border-input bg-background hover-elevate active-elevate-2 cursor-pointer text-sm"
+                  data-testid="label-file-upload"
+                >
+                  <Upload className="h-4 w-4" />
+                  {uploadedFile ? "Change File" : "Upload File"}
+                </label>
+                <input
+                  id="file-upload"
+                  type="file"
+                  accept=".csv,.xlsx,.pdf,.doc,.docx"
+                  onChange={handleFileChange}
+                  className="hidden"
+                  data-testid="input-file"
+                />
+                {uploadedFile && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <FileText className="h-4 w-4" />
+                    <span className="truncate max-w-xs">{uploadedFile.name}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setUploadedFile(null)}
+                      className="h-6 px-2"
+                      data-testid="button-remove-file"
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Upload CSV, Excel, PDF, or Word documents (max 10MB)
+              </p>
             </div>
 
             <div className="flex gap-2">

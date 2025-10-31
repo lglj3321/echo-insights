@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Upload } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 export default function Projects() {
@@ -114,11 +114,7 @@ export default function Projects() {
             Manage and track your sustainability initiatives
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" data-testid="button-import-csv">
-            <Upload className="h-4 w-4 mr-2" />
-            Import CSV
-          </Button>
+        <div>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button data-testid="button-create-project">
