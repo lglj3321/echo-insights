@@ -1,4 +1,4 @@
-import { Home, BarChart3, FolderKanban, QrCode, Settings, Target, Users, Calculator, Trophy } from "lucide-react";
+import { Home, BarChart3, FolderKanban, QrCode, Settings, Target, Users, Calculator, Trophy, ChevronUp, LogOut } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -8,7 +8,17 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarFooter,
 } from "@/components/ui/sidebar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useLocation } from "wouter";
 
 const menuItems = [
@@ -62,6 +72,16 @@ const menuItems = [
 export function AppSidebar() {
   const [location] = useLocation();
 
+  const user = {
+    name: "Sarah Johnson",
+    email: "sarah.johnson@company.com",
+    role: "Sustainability Director",
+  };
+
+  const handleSignOut = () => {
+    window.location.href = "/api/logout";
+  };
+
   return (
     <Sidebar>
       <SidebarContent>
@@ -89,6 +109,48 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground" data-testid="button-user-menu">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                      {user.name.split(' ').map(n => n[0]).join('')}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-col items-start flex-1 text-left min-w-0">
+                    <span className="text-sm font-medium truncate w-full">{user.name}</span>
+                    <span className="text-xs text-muted-foreground truncate w-full">{user.email}</span>
+                  </div>
+                  <ChevronUp className="ml-auto h-4 w-4" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" className="w-56">
+                <DropdownMenuLabel>
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium">{user.name}</p>
+                    <p className="text-xs text-muted-foreground">{user.email}</p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <a href="/settings" data-testid="link-profile-settings">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut} data-testid="button-sign-out">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   );
 }
