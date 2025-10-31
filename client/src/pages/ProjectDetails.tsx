@@ -18,9 +18,11 @@ import {
   LineChart,
   Upload,
   Clock,
+  MessageSquare,
 } from "lucide-react";
 import { Link } from "wouter";
 import { ProjectUpdateDialog } from "@/components/ProjectUpdateDialog";
+import { CreateSurveyDialog } from "@/components/CreateSurveyDialog";
 import { useToast } from "@/hooks/use-toast";
 
 interface MetricScore {
@@ -60,6 +62,7 @@ export default function ProjectDetails() {
   const [isAuthorized] = useState(true); // In real app, check user permissions OR merge context
   const [showMergeBanner, setShowMergeBanner] = useState(isMerged && mergeContext);
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
+  const [isCreateSurveyDialogOpen, setIsCreateSurveyDialogOpen] = useState(false);
   const [projectUpdates, setProjectUpdates] = useState<ProjectUpdate[]>([
     {
       period: "Q4",
@@ -217,6 +220,14 @@ export default function ProjectDetails() {
     });
   };
 
+  const handleCreateSurvey = (surveyData: any) => {
+    console.log('Survey created:', surveyData);
+    toast({
+      title: "Survey Created",
+      description: `Your survey "${surveyData.title}" has been created successfully.`,
+    });
+  };
+
   const existingMetricNames = mockMetrics.map(m => m.name);
 
   return (
@@ -294,6 +305,14 @@ export default function ProjectDetails() {
           </Link>
           {isAuthorized && (
             <>
+              <Button 
+                variant="default" 
+                onClick={() => setIsCreateSurveyDialogOpen(true)}
+                data-testid="button-create-survey"
+              >
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Create Survey
+              </Button>
               <Button 
                 variant="secondary" 
                 onClick={() => setIsUpdateDialogOpen(true)}
@@ -598,6 +617,14 @@ export default function ProjectDetails() {
         projectId={projectId}
         existingMetrics={existingMetricNames}
         onSubmit={handleProjectUpdate}
+      />
+
+      <CreateSurveyDialog
+        open={isCreateSurveyDialogOpen}
+        onOpenChange={setIsCreateSurveyDialogOpen}
+        projectId={projectId}
+        projectCategory={mockProject.category}
+        onSubmit={handleCreateSurvey}
       />
     </div>
   );
