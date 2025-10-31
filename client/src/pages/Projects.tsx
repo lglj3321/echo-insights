@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ProjectCard, Project } from "@/components/ProjectCard";
 import { ProjectForm } from "@/components/ProjectForm";
 import { MetricsSelectionDialog, MetricItem } from "@/components/MetricsSelectionDialog";
+import { SimilarProjectsDialog } from "@/components/SimilarProjectsDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -28,7 +29,10 @@ export default function Projects() {
   const [filterType, setFilterType] = useState<string>("all");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isMetricsDialogOpen, setIsMetricsDialogOpen] = useState(false);
+  const [isSimilarProjectsDialogOpen, setIsSimilarProjectsDialogOpen] = useState(false);
   const [pendingMetrics, setPendingMetrics] = useState<MetricItem[]>([]);
+  const [pendingProjectData, setPendingProjectData] = useState<any>(null);
+  const [similarProjects, setSimilarProjects] = useState<any[]>([]);
 
   // TODO: Remove mock data - replace with actual API data
   const mockProjects: Project[] = [
@@ -149,6 +153,7 @@ export default function Projects() {
       allMetrics = [...allMetrics, ...fileMetrics];
     }
 
+    setPendingProjectData(data);
     setIsCreateDialogOpen(false);
     
     if (allMetrics.length > 0) {
@@ -163,13 +168,112 @@ export default function Projects() {
     }
   };
 
+  const calculateSimilarity = (newProjectData: any, existingProject: Project, selectedMetrics: MetricItem[]) => {
+    let totalScore = 0;
+    const matchReasons: string[] = [];
+
+    const newDesc = newProjectData.description.toLowerCase();
+    const existingDesc = existingProject.description.toLowerCase();
+    const words = newDesc.split(/\s+/);
+    const matchingWords = words.filter((word: string) => 
+      word.length > 3 && existingDesc.includes(word)
+    );
+    const descriptionSimilarity = (matchingWords.length / Math.max(words.length, 1)) * 100;
+    totalScore += descriptionSimilarity * 0.6;
+
+    if (descriptionSimilarity > 30) {
+      matchReasons.push(`${Math.round(descriptionSimilarity)}% description overlap`);
+    }
+
+    const metricNames = selectedMetrics.map(m => m.name.toLowerCase());
+    const hasCarbon = metricNames.some(n => n.includes('co') || n.includes('carbon') || n.includes('emission'));
+    const hasWater = metricNames.some(n => n.includes('water'));
+    const hasEnergy = metricNames.some(n => n.includes('energy'));
+    
+    let metricOverlap = 0;
+    if (hasCarbon && existingProject.co2Saved) {
+      metricOverlap += 33;
+      matchReasons.push('Both track carbon emissions');
+    }
+    if (hasWater && existingProject.waterSaved) {
+      metricOverlap += 33;
+      matchReasons.push('Both track water conservation');
+    }
+    if (hasEnergy) {
+      metricOverlap += 33;
+      matchReasons.push('Both focus on energy efficiency');
+    }
+
+    totalScore += metricOverlap * 0.4;
+
+    const costDiff = Math.abs(newProjectData.estimatedCost - existingProject.estimatedCost);
+    const avgCost = (newProjectData.estimatedCost + existingProject.estimatedCost) / 2;
+    if (avgCost > 0 && costDiff / avgCost < 0.3) {
+      matchReasons.push('Similar budget range');
+    }
+
+    return {
+      similarity: Math.min(Math.round(totalScore), 99),
+      matchReasons: matchReasons.length > 0 ? matchReasons : ['General similarity in scope']
+    };
+  };
+
   const handleMetricsConfirm = (selectedMetrics: MetricItem[]) => {
-    console.log('Final project with selected metrics:', selectedMetrics);
+    const similar = mockProjects
+      .map(project => {
+        const { similarity, matchReasons } = calculateSimilarity(
+          pendingProjectData,
+          project,
+          selectedMetrics
+        );
+        return { project, similarity, matchReasons };
+      })
+      .filter(s => s.similarity > 25)
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, 3);
+
+    if (similar.length > 0) {
+      setSimilarProjects(similar);
+      setIsSimilarProjectsDialogOpen(true);
+    } else {
+      finalizeProject(selectedMetrics);
+    }
+  };
+
+  const finalizeProject = (selectedMetrics?: MetricItem[]) => {
+    const metrics = selectedMetrics || pendingMetrics.filter(m => m.name && m.value);
+    console.log('Final project created with metrics:', metrics);
     toast({
       title: "Project Created",
-      description: `Your project has been created with ${selectedMetrics.length} metric${selectedMetrics.length !== 1 ? 's' : ''}.`,
+      description: `Your project has been created with ${metrics.length} metric${metrics.length !== 1 ? 's' : ''}.`,
     });
     setPendingMetrics([]);
+    setPendingProjectData(null);
+  };
+
+  const handleMergeProject = (projectId: string) => {
+    const mergeWith = mockProjects.find(p => p.id === projectId);
+    console.log('Merging new project with:', mergeWith);
+    toast({
+      title: "Projects Merged",
+      description: `Your new project has been merged with "${mergeWith?.title}".`,
+    });
+    setPendingMetrics([]);
+    setPendingProjectData(null);
+  };
+
+  const handleCancelProject = () => {
+    toast({
+      title: "Project Cancelled",
+      description: "Your new project has been cancelled.",
+      variant: "destructive",
+    });
+    setPendingMetrics([]);
+    setPendingProjectData(null);
+  };
+
+  const handleProceedWithProject = () => {
+    finalizeProject();
   };
 
   return (
@@ -272,6 +376,15 @@ export default function Projects() {
         onOpenChange={setIsMetricsDialogOpen}
         metrics={pendingMetrics}
         onSubmit={handleMetricsConfirm}
+      />
+
+      <SimilarProjectsDialog
+        open={isSimilarProjectsDialogOpen}
+        onOpenChange={setIsSimilarProjectsDialogOpen}
+        similarProjects={similarProjects}
+        onMerge={handleMergeProject}
+        onCancel={handleCancelProject}
+        onProceed={handleProceedWithProject}
       />
     </div>
   );
