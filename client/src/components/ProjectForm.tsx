@@ -20,17 +20,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, FileText } from "lucide-react";
+import { Upload, FileText, Plus, X } from "lucide-react";
 import { useState } from "react";
+
+interface Metric {
+  name: string;
+  value: string;
+}
 
 const projectSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
   description: z.string().min(10, "Description must be at least 10 characters"),
-  type: z.enum(["Packaging", "Energy", "Sourcing", "Waste", "Water", "Logistics"]),
   estimatedCost: z.coerce.number().min(0, "Cost must be positive"),
   roi: z.coerce.number().min(0, "ROI must be positive"),
-  co2Saved: z.coerce.number().min(0, "CO₂ saved must be positive"),
-  waterSaved: z.coerce.number().min(0).optional(),
 });
 
 type ProjectFormData = z.infer<typeof projectSchema>;
@@ -42,17 +44,17 @@ interface ProjectFormProps {
 
 export function ProjectForm({ onSubmit, initialData }: ProjectFormProps) {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [metrics, setMetrics] = useState<Metric[]>([
+    { name: "", value: "" }
+  ]);
   
   const form = useForm<ProjectFormData>({
     resolver: zodResolver(projectSchema),
     defaultValues: {
       title: initialData?.title || "",
       description: initialData?.description || "",
-      type: initialData?.type || "Packaging",
       estimatedCost: initialData?.estimatedCost || 0,
       roi: initialData?.roi || 0,
-      co2Saved: initialData?.co2Saved || 0,
-      waterSaved: initialData?.waterSaved || 0,
     },
   });
 
@@ -62,7 +64,26 @@ export function ProjectForm({ onSubmit, initialData }: ProjectFormProps) {
     }
   };
 
+  const addMetric = () => {
+    setMetrics([...metrics, { name: "", value: "" }]);
+  };
+
+  const removeMetric = (index: number) => {
+    setMetrics(metrics.filter((_, i) => i !== index));
+  };
+
+  const updateMetric = (index: number, field: 'name' | 'value', value: string) => {
+    const updated = [...metrics];
+    updated[index][field] = value;
+    setMetrics(updated);
+  };
+
   const handleFormSubmit = (data: ProjectFormData) => {
+    const formDataWithMetrics = {
+      ...data,
+      metrics: metrics.filter(m => m.name && m.value)
+    };
+    console.log('Project data:', formDataWithMetrics);
     console.log('Uploaded file:', uploadedFile);
     onSubmit(data);
   };
@@ -78,51 +99,23 @@ export function ProjectForm({ onSubmit, initialData }: ProjectFormProps) {
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                control={form.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Project Title</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="e.g., 100% Recycled Packaging"
-                        {...field}
-                        data-testid="input-title"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Project Type</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-type">
-                          <SelectValue placeholder="Select a type" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Packaging">Packaging</SelectItem>
-                        <SelectItem value="Energy">Energy</SelectItem>
-                        <SelectItem value="Sourcing">Sourcing</SelectItem>
-                        <SelectItem value="Waste">Waste</SelectItem>
-                        <SelectItem value="Water">Water</SelectItem>
-                        <SelectItem value="Logistics">Logistics</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Project Title</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="e.g., 100% Recycled Packaging"
+                      {...field}
+                      data-testid="input-title"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}
@@ -181,45 +174,59 @@ export function ProjectForm({ onSubmit, initialData }: ProjectFormProps) {
                   </FormItem>
                 )}
               />
+            </div>
 
-              <FormField
-                control={form.control}
-                name="co2Saved"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>CO₂ Saved (Tons/Year)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.1"
-                        placeholder="0"
-                        {...field}
-                        data-testid="input-co2"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <FormLabel>Existing Metrics</FormLabel>
+                  <p className="text-sm text-muted-foreground">
+                    Add custom sustainability metrics for this project
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addMetric}
+                  data-testid="button-add-metric"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Metric
+                </Button>
+              </div>
 
-              <FormField
-                control={form.control}
-                name="waterSaved"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Water Saved (Gallons/Year) - Optional</FormLabel>
-                    <FormControl>
+              <div className="space-y-3">
+                {metrics.map((metric, index) => (
+                  <div key={index} className="flex gap-2 items-start">
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
                       <Input
-                        type="number"
-                        placeholder="0"
-                        {...field}
-                        data-testid="input-water"
+                        placeholder="Metric name (e.g., CO₂ Saved)"
+                        value={metric.name}
+                        onChange={(e) => updateMetric(index, 'name', e.target.value)}
+                        data-testid={`input-metric-name-${index}`}
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      <Input
+                        placeholder="Value (e.g., 2 Tons/Quarter)"
+                        value={metric.value}
+                        onChange={(e) => updateMetric(index, 'value', e.target.value)}
+                        data-testid={`input-metric-value-${index}`}
+                      />
+                    </div>
+                    {metrics.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeMetric(index)}
+                        data-testid={`button-remove-metric-${index}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="space-y-2">
