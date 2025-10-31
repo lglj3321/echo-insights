@@ -1,4 +1,4 @@
-import { Home, BarChart3, FolderKanban, QrCode, Settings, Target, Users, Calculator, Trophy, ChevronUp, LogOut } from "lucide-react";
+import { Home, BarChart3, FolderKanban, QrCode, Settings, Target, Users, Calculator, Trophy, ChevronUp, LogOut, GitCompare } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -31,6 +31,11 @@ const menuItems = [
     title: "Projects",
     url: "/projects",
     icon: FolderKanban,
+  },
+  {
+    title: "Comparison",
+    url: "/comparison",
+    icon: GitCompare,
   },
   {
     title: "Analytics",

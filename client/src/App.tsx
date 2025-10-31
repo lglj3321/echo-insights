@@ -10,6 +10,7 @@ import Dashboard from "@/pages/Dashboard";
 import Projects from "@/pages/Projects";
 import ProjectDetails from "@/pages/ProjectDetails";
 import Forecast from "@/pages/Forecast";
+import Comparison from "@/pages/Comparison";
 import Analytics from "@/pages/Analytics";
 import QRCodes from "@/pages/QRCodes";
 import Settings from "@/pages/Settings";
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/projects" component={Projects} />
       <Route path="/project/:id" component={ProjectDetails} />
       <Route path="/project/:id/forecast" component={Forecast} />
+      <Route path="/comparison" component={Comparison} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/goals" component={Goals} />
       <Route path="/qr-codes" component={QRCodes} />
