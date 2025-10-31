@@ -15,6 +15,7 @@ import {
   Edit,
   Download,
   Award,
+  LineChart,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -140,12 +141,20 @@ export default function ProjectDetails() {
             Created on {new Date(mockProject.createdAt).toLocaleDateString()}
           </p>
         </div>
-        {isAuthorized && (
-          <Button variant="outline" data-testid="button-edit-project">
-            <Edit className="h-4 w-4 mr-2" />
-            Edit Project
-          </Button>
-        )}
+        <div className="flex gap-2">
+          <Link href={`/project/${projectId}/forecast`}>
+            <Button variant="default" data-testid="button-forecast">
+              <LineChart className="h-4 w-4 mr-2" />
+              Forecast
+            </Button>
+          </Link>
+          {isAuthorized && (
+            <Button variant="outline" data-testid="button-edit-project">
+              <Edit className="h-4 w-4 mr-2" />
+              Edit Project
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
