@@ -49,7 +49,8 @@ export default function Projects() {
       co2Saved: 2.5,
       waterSaved: 500,
       feedbackScore: 4.6,
-      responseCount: 234
+      responseCount: 234,
+      impactScore: 82
     },
     {
       id: "2",
@@ -60,7 +61,8 @@ export default function Projects() {
       roi: 25,
       co2Saved: 8.2,
       feedbackScore: 4.1,
-      responseCount: 156
+      responseCount: 156,
+      impactScore: 91
     },
     {
       id: "3",
@@ -71,7 +73,8 @@ export default function Projects() {
       roi: 12,
       co2Saved: 1.8,
       feedbackScore: 4.8,
-      responseCount: 312
+      responseCount: 312,
+      impactScore: 76
     },
     {
       id: "4",
@@ -82,7 +85,8 @@ export default function Projects() {
       roi: 20,
       co2Saved: 3.5,
       feedbackScore: 4.3,
-      responseCount: 189
+      responseCount: 189,
+      impactScore: 85
     },
     {
       id: "5",
@@ -93,7 +97,8 @@ export default function Projects() {
       roi: 15,
       co2Saved: 2.1,
       feedbackScore: 4.4,
-      responseCount: 201
+      responseCount: 201,
+      impactScore: 78
     },
     {
       id: "6",
@@ -104,7 +109,8 @@ export default function Projects() {
       roi: 22,
       co2Saved: 5.8,
       feedbackScore: 4.2,
-      responseCount: 167
+      responseCount: 167,
+      impactScore: 88
     },
   ];
 
@@ -447,8 +453,6 @@ export default function Projects() {
             <ProjectCard
               key={project.id}
               project={project}
-              onGenerateQR={(id) => console.log('Generate QR for project:', id)}
-              onViewDetails={(id) => console.log('View details for project:', id)}
             />
           ))}
         </div>

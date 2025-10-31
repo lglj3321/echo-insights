@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { MessageSquare, BarChart3, Users, TrendingUp, Clock, CheckCircle2 } from "lucide-react";
+import { MessageSquare, BarChart3, Users, TrendingUp, Clock, CheckCircle2, QrCode, Download } from "lucide-react";
 import { Link } from "wouter";
+import { QRCodeSVG } from "qrcode.react";
 
 interface Survey {
   id: string;
@@ -20,7 +21,22 @@ interface Survey {
   createdAt: string;
   completedAt?: string;
   questions: string[];
+  qrCodeUrl?: string;
 }
+
+const downloadQRCode = (surveyId: string, surveyTitle: string) => {
+  const svg = document.getElementById(`qr-${surveyId}`);
+  if (svg && svg instanceof SVGSVGElement) {
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(svgBlob);
+    const link = document.createElement("a");
+    link.download = `survey-qr-${surveyTitle.replace(/\s+/g, '-').toLowerCase()}.svg`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+};
 
 export default function Feedback() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -36,6 +52,7 @@ export default function Feedback() {
       responses: 67,
       targetResponses: 100,
       createdAt: "2024-10-15",
+      qrCodeUrl: `${window.location.origin}/survey/1`,
       questions: [
         "How satisfied are you with the sustainability of our packaging?",
         "Would you prefer products with biodegradable packaging?",
@@ -55,6 +72,7 @@ export default function Feedback() {
       npsScore: 72,
       createdAt: "2024-09-20",
       completedAt: "2024-10-01",
+      qrCodeUrl: `${window.location.origin}/survey/2`,
       questions: [
         "How aware are you of our renewable energy initiatives?",
         "Do our energy-saving efforts influence your trust in our brand?",
@@ -74,6 +92,7 @@ export default function Feedback() {
       npsScore: 65,
       createdAt: "2024-09-01",
       completedAt: "2024-09-25",
+      qrCodeUrl: `${window.location.origin}/survey/3`,
       questions: [
         "How important is local sourcing to you?",
         "Do you value products with ethical supply chains?",
@@ -203,12 +222,39 @@ export default function Feedback() {
                     {survey.completedAt && ` • Completed: ${new Date(survey.completedAt).toLocaleDateString()}`}
                   </p>
                 </div>
-                <Link href={`/feedback/${survey.id}`}>
-                  <Button variant="outline" size="sm" data-testid={`button-view-${survey.id}`}>
-                    <BarChart3 className="h-4 w-4 mr-2" />
-                    View Results
-                  </Button>
-                </Link>
+                <div className="flex gap-2">
+                  {survey.qrCodeUrl && (
+                    <Card className="p-3">
+                      <div className="space-y-2">
+                        <QRCodeSVG
+                          id={`qr-${survey.id}`}
+                          value={survey.qrCodeUrl}
+                          size={120}
+                          level="H"
+                          includeMargin
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => downloadQRCode(survey.id, survey.title)}
+                          data-testid={`button-download-qr-${survey.id}`}
+                        >
+                          <Download className="h-3 w-3 mr-2" />
+                          Download QR
+                        </Button>
+                      </div>
+                    </Card>
+                  )}
+                  <div className="flex flex-col gap-2">
+                    <Link href={`/feedback/${survey.id}`}>
+                      <Button variant="outline" size="sm" data-testid={`button-view-${survey.id}`}>
+                        <BarChart3 className="h-4 w-4 mr-2" />
+                        View Results
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">

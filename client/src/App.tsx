@@ -13,13 +13,10 @@ import Forecast from "@/pages/Forecast";
 import Comparison from "@/pages/Comparison";
 import Feedback from "@/pages/Feedback";
 import Analytics from "@/pages/Analytics";
-import QRCodes from "@/pages/QRCodes";
 import Settings from "@/pages/Settings";
 import Survey from "@/pages/Survey";
 import Goals from "@/pages/Goals";
 import Team from "@/pages/Team";
-import ImpactCalculator from "@/pages/ImpactCalculator";
-import Scorecard from "@/pages/Scorecard";
 
 function Router() {
   return (
@@ -32,10 +29,7 @@ function Router() {
       <Route path="/feedback" component={Feedback} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/goals" component={Goals} />
-      <Route path="/qr-codes" component={QRCodes} />
-      <Route path="/calculator" component={ImpactCalculator} />
       <Route path="/team" component={Team} />
-      <Route path="/scorecard" component={Scorecard} />
       <Route path="/settings" component={Settings} />
       <Route path="/survey/:projectId?" component={Survey} />
       <Route component={NotFound} />

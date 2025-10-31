@@ -1,7 +1,8 @@
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { QrCode, Star, DollarSign, Leaf, TrendingUp } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Star, DollarSign, Leaf, TrendingUp, Award } from "lucide-react";
 import { Link } from "wouter";
 
 export interface Project {
@@ -15,13 +16,19 @@ export interface Project {
   waterSaved?: number;
   feedbackScore?: number;
   responseCount?: number;
+  impactScore?: number;
 }
 
 interface ProjectCardProps {
   project: Project;
-  onGenerateQR?: (projectId: string) => void;
-  onViewDetails?: (projectId: string) => void;
 }
+
+const getScoreColor = (score: number): string => {
+  if (score >= 80) return "text-primary";
+  if (score >= 60) return "text-chart-3";
+  if (score >= 40) return "text-chart-2";
+  return "text-muted-foreground";
+};
 
 const typeColors: Record<string, string> = {
   Packaging: "bg-chart-1 text-primary-foreground",
@@ -32,7 +39,7 @@ const typeColors: Record<string, string> = {
   Logistics: "bg-muted text-muted-foreground",
 };
 
-export function ProjectCard({ project, onGenerateQR, onViewDetails }: ProjectCardProps) {
+export function ProjectCard({ project }: ProjectCardProps) {
   return (
     <Card data-testid={`card-project-${project.id}`} className="flex flex-col">
       <CardHeader>
@@ -43,6 +50,21 @@ export function ProjectCard({ project, onGenerateQR, onViewDetails }: ProjectCar
           </Badge>
         </div>
         <p className="text-sm text-muted-foreground mt-2">{project.description}</p>
+        
+        {project.impactScore !== undefined && (
+          <div className="mt-3 p-3 rounded-lg bg-muted space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Award className="h-3 w-3" />
+                <span>Impact Score</span>
+              </div>
+              <span className={`text-2xl font-bold font-mono ${getScoreColor(project.impactScore)}`}>
+                {project.impactScore}
+              </span>
+            </div>
+            <Progress value={project.impactScore} className="h-1.5" />
+          </div>
+        )}
       </CardHeader>
       <CardContent className="flex-1">
         <div className="grid grid-cols-2 gap-4">
@@ -84,22 +106,14 @@ export function ProjectCard({ project, onGenerateQR, onViewDetails }: ProjectCar
       <CardFooter className="flex gap-2 flex-wrap">
         <Link href={`/project/${project.id}`}>
           <Button 
-            variant="outline" 
+            variant="default" 
             size="sm" 
+            className="flex-1"
             data-testid={`button-view-${project.id}`}
           >
             View Details
           </Button>
         </Link>
-        <Button 
-          variant="default" 
-          size="sm"
-          onClick={() => onGenerateQR?.(project.id)}
-          data-testid={`button-qr-${project.id}`}
-        >
-          <QrCode className="h-4 w-4 mr-2" />
-          Generate QR
-        </Button>
       </CardFooter>
     </Card>
   );
