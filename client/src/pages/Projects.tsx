@@ -228,6 +228,13 @@ export default function Projects() {
   };
 
   const handleMetricsConfirm = (selectedMetrics: MetricItem[]) => {
+    // Close metrics dialog first
+    setIsMetricsDialogOpen(false);
+    
+    // Store metrics for later use
+    setPendingMetrics(selectedMetrics);
+    
+    // Calculate similarity with existing projects
     const similar = mockProjects
       .map(project => {
         const { similarity, matchReasons } = calculateSimilarity(
@@ -237,13 +244,22 @@ export default function Projects() {
         );
         return { project, similarity, matchReasons };
       })
-      .filter(s => s.similarity > 25)
+      .filter(s => s.similarity >= 25)
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, 3);
 
+    console.log('Similarity analysis results:', {
+      totalProjects: mockProjects.length,
+      similarFound: similar.length,
+      topMatches: similar.map(s => ({ title: s.project.title, similarity: s.similarity }))
+    });
+
     if (similar.length > 0) {
-      setSimilarProjects(similar);
-      setIsSimilarProjectsDialogOpen(true);
+      // Wait a brief moment for the metrics dialog to fully close
+      setTimeout(() => {
+        setSimilarProjects(similar);
+        setIsSimilarProjectsDialogOpen(true);
+      }, 100);
     } else {
       finalizeProject(selectedMetrics);
     }
