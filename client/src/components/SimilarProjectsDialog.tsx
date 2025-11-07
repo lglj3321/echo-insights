@@ -86,12 +86,30 @@ export function SimilarProjectsDialog({
       <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-orange-600" />
-            Similar Projects Found
+            {similarProjects.length > 0 ? (
+              <>
+                <AlertTriangle className="h-5 w-5 text-orange-600" />
+                Similar Projects Found
+              </>
+            ) : (
+              <>
+                <Check className="h-5 w-5 text-primary" />
+                No Similar Projects Detected
+              </>
+            )}
           </DialogTitle>
           <DialogDescription>
-            We found {similarProjects.length} existing project{similarProjects.length !== 1 ? 's' : ''} similar to your new project.
-            Review the matches below and decide whether to merge, cancel, or proceed with a new project.
+            {similarProjects.length > 0 ? (
+              <>
+                We found {similarProjects.length} existing project{similarProjects.length !== 1 ? 's' : ''} similar to your new project.
+                Review the matches below and decide whether to merge, cancel, or proceed with a new project.
+              </>
+            ) : (
+              <>
+                Your project appears to be unique! No existing projects were found with similar descriptions or metrics.
+                You can proceed to set up categories and recommended metrics for your new project.
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -231,8 +249,14 @@ export function SimilarProjectsDialog({
           })}
 
           {similarProjects.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>No similar projects found</p>
+            <div className="text-center py-12">
+              <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <Check className="h-8 w-8 text-primary" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">All Clear!</h3>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                This project is unique and doesn't significantly overlap with any existing projects in your portfolio.
+              </p>
             </div>
           )}
         </div>
@@ -240,7 +264,12 @@ export function SimilarProjectsDialog({
         <DialogFooter>
           <div className="flex items-center justify-between w-full gap-2 flex-wrap">
             <p className="text-sm text-muted-foreground">
-              {selectedProject ? 'Merging will combine data with the selected project' : 'Choose an action to continue'}
+              {similarProjects.length === 0 
+                ? 'Continue to set up your project categories and metrics'
+                : selectedProject 
+                  ? 'Merging will combine data with the selected project' 
+                  : 'Choose an action to continue'
+              }
             </p>
             <div className="flex gap-2 flex-wrap">
               <Button
@@ -266,7 +295,7 @@ export function SimilarProjectsDialog({
                 data-testid="button-proceed-anyway"
               >
                 <Check className="h-4 w-4 mr-2" />
-                Proceed Anyway
+                {similarProjects.length === 0 ? 'Continue' : 'Proceed Anyway'}
               </Button>
             </div>
           </div>

@@ -254,15 +254,11 @@ export default function Projects() {
       topMatches: similar.map(s => ({ title: s.project.title, similarity: s.similarity }))
     });
 
-    if (similar.length > 0) {
-      // Wait a brief moment for the metrics dialog to fully close
-      setTimeout(() => {
-        setSimilarProjects(similar);
-        setIsSimilarProjectsDialogOpen(true);
-      }, 100);
-    } else {
-      finalizeProject(selectedMetrics);
-    }
+    // Always show similarity dialog (even if no matches)
+    setTimeout(() => {
+      setSimilarProjects(similar);
+      setIsSimilarProjectsDialogOpen(true);
+    }, 100);
   };
 
   const finalizeProject = (selectedMetrics?: MetricItem[]) => {
@@ -348,9 +344,17 @@ export default function Projects() {
   };
 
   const handleProceedWithProject = () => {
+    console.log('Proceeding to category selection');
+    // Close similar projects dialog
+    setIsSimilarProjectsDialogOpen(false);
+    
+    // Categorize and open category metrics dialog
     const category = categorizeProject(pendingProjectData, pendingMetrics);
     setSuggestedCategory(category);
-    setIsCategoryMetricsDialogOpen(true);
+    
+    setTimeout(() => {
+      setIsCategoryMetricsDialogOpen(true);
+    }, 100);
   };
 
   const handleCategoryMetricsSubmit = (category: string, additionalMetrics: RecommendedMetric[]) => {
