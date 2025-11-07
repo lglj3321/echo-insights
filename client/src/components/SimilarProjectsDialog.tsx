@@ -20,9 +20,11 @@ import {
   TrendingUp, 
   DollarSign,
   Leaf,
-  ChevronRight
+  ChevronRight,
+  ExternalLink
 } from "lucide-react";
 import { Project } from "@/components/ProjectCard";
+import { Link } from "wouter";
 
 interface SimilarProject {
   project: Project;
@@ -153,16 +155,26 @@ export function SimilarProjectsDialog({
 
                   <Separator />
 
-                  <div className="flex items-center gap-4 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Button
                       variant={isExpanded ? "secondary" : "outline"}
                       size="sm"
                       onClick={() => setExpandedProject(isExpanded ? null : similar.project.id)}
-                      data-testid={`button-view-details-${index}`}
+                      data-testid={`button-expand-${index}`}
                     >
                       <ChevronRight className={`h-4 w-4 mr-2 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                      {isExpanded ? 'Hide Details' : 'View Details'}
+                      {isExpanded ? 'Hide' : 'Quick View'}
                     </Button>
+                    <Link href={`/project/${similar.project.id}`} target="_blank">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        data-testid={`button-view-full-${index}`}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Open Full Details
+                      </Button>
+                    </Link>
                     <Button
                       variant={isSelected ? "default" : "outline"}
                       size="sm"
