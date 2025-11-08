@@ -32,8 +32,7 @@ interface CategoryMetricsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   suggestedCategory: string;
-  existingMetrics: string[];
-  onSubmit: (category: string, selectedMetrics: RecommendedMetric[]) => void;
+  onSubmit: (category: string) => void;
 }
 
 const PROJECT_CATEGORIES = [
@@ -94,68 +93,43 @@ export function CategoryMetricsDialog({
   open,
   onOpenChange,
   suggestedCategory,
-  existingMetrics,
   onSubmit,
 }: CategoryMetricsDialogProps) {
   const [selectedCategory, setSelectedCategory] = useState(suggestedCategory);
-  const [selectedMetrics, setSelectedMetrics] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     setSelectedCategory(suggestedCategory);
   }, [suggestedCategory]);
 
-  useEffect(() => {
-    setSelectedMetrics(new Set());
-  }, [selectedCategory]);
-
-  const toggleMetric = (index: number) => {
-    const newSelected = new Set(selectedMetrics);
-    if (newSelected.has(index)) {
-      newSelected.delete(index);
-    } else {
-      newSelected.add(index);
-    }
-    setSelectedMetrics(newSelected);
-  };
-
   const handleSubmit = () => {
-    const categoryMetrics = RECOMMENDED_METRICS_BY_CATEGORY[selectedCategory] || [];
-    const selected = categoryMetrics.filter((_, index) => selectedMetrics.has(index));
-    onSubmit(selectedCategory, selected);
+    onSubmit(selectedCategory);
   };
-
-  const availableMetrics = (RECOMMENDED_METRICS_BY_CATEGORY[selectedCategory] || []).filter(
-    metric => !existingMetrics.some(existing => 
-      existing.toLowerCase().includes(metric.name.toLowerCase()) ||
-      metric.name.toLowerCase().includes(existing.toLowerCase())
-    )
-  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Project Categorization & Recommended Metrics
+            <Tag className="h-5 w-5 text-primary" />
+            Finalize Project Category
           </DialogTitle>
           <DialogDescription>
-            We've automatically categorized your project. You can change the category and select additional recommended metrics.
+            We've automatically categorized your project based on your description and selected metrics. You can change the category before finalizing.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <Tag className="h-4 w-4" />
-                Project Category
+                <Sparkles className="h-4 w-4" />
+                AI-Suggested Category
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="category-select">
-                  Suggested Category: <Badge variant="default" className="ml-2">{suggestedCategory}</Badge>
+                  Our AI suggests: <Badge variant="default" className="ml-2">{suggestedCategory}</Badge>
                 </Label>
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                   <SelectTrigger id="category-select" data-testid="select-category">
@@ -170,96 +144,28 @@ export function CategoryMetricsDialog({
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Category determined by analyzing project description and metrics
+                  Category determined by analyzing your project description and selected metrics
                 </p>
               </div>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4" />
-                  Recommended Metrics for {selectedCategory}
-                </CardTitle>
-                <Badge variant="outline">
-                  {availableMetrics.length} available
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {availableMetrics.length > 0 ? (
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Select additional metrics to track for this {selectedCategory.toLowerCase()} project:
-                  </p>
-                  <div className="space-y-2">
-                    {availableMetrics.map((metric, index) => (
-                      <div
-                        key={index}
-                        className="flex items-start gap-3 p-3 rounded-lg border hover-elevate"
-                        data-testid={`recommended-metric-${index}`}
-                      >
-                        <Checkbox
-                          checked={selectedMetrics.has(index)}
-                          onCheckedChange={() => toggleMetric(index)}
-                          data-testid={`checkbox-recommended-${index}`}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium">{metric.name}</p>
-                          <p className="text-sm text-muted-foreground">Unit: {metric.value}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-6 text-muted-foreground">
-                  <p>All recommended metrics for this category are already selected</p>
-                  <p className="text-sm mt-1">or no additional metrics available</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {existingMetrics.length > 0 && (
-            <>
-              <Separator />
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Already Selected Metrics:</Label>
-                <div className="flex flex-wrap gap-2">
-                  {existingMetrics.map((metric, index) => (
-                    <Badge key={index} variant="secondary">
-                      {metric}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
         </div>
 
         <DialogFooter>
-          <div className="flex items-center justify-between w-full gap-2">
-            <p className="text-sm text-muted-foreground">
-              {selectedMetrics.size} additional metric{selectedMetrics.size !== 1 ? 's' : ''} selected
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                data-testid="button-cancel-category"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                data-testid="button-submit-category"
-              >
-                Finalize Project
-              </Button>
-            </div>
+          <div className="flex items-center justify-end w-full gap-2">
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              data-testid="button-cancel-category"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              data-testid="button-finalize-project"
+            >
+              Finalize & Create Project
+            </Button>
           </div>
         </DialogFooter>
       </DialogContent>

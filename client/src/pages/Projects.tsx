@@ -3,7 +3,8 @@ import { ProjectCard, Project } from "@/components/ProjectCard";
 import { ProjectForm } from "@/components/ProjectForm";
 import { MetricsSelectionDialog, MetricItem } from "@/components/MetricsSelectionDialog";
 import { SimilarProjectsDialog } from "@/components/SimilarProjectsDialog";
-import { CategoryMetricsDialog, RecommendedMetric } from "@/components/CategoryMetricsDialog";
+import { CategoryMetricsDialog, RecommendedMetric as CategoryMetric } from "@/components/CategoryMetricsDialog";
+import { RecommendedMetricsDialog, RecommendedMetric } from "@/components/RecommendedMetricsDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,10 +30,12 @@ export default function Projects() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isRecommendedMetricsDialogOpen, setIsRecommendedMetricsDialogOpen] = useState(false);
   const [isMetricsDialogOpen, setIsMetricsDialogOpen] = useState(false);
   const [isSimilarProjectsDialogOpen, setIsSimilarProjectsDialogOpen] = useState(false);
   const [isCategoryMetricsDialogOpen, setIsCategoryMetricsDialogOpen] = useState(false);
   const [pendingMetrics, setPendingMetrics] = useState<MetricItem[]>([]);
+  const [recommendedMetrics, setRecommendedMetrics] = useState<RecommendedMetric[]>([]);
   const [pendingProjectData, setPendingProjectData] = useState<any>(null);
   const [similarProjects, setSimilarProjects] = useState<any[]>([]);
   const [suggestedCategory, setSuggestedCategory] = useState<string>("Packaging");
@@ -149,7 +152,25 @@ export default function Projects() {
   };
 
   const handleProjectSubmit = async (data: any) => {
-    const userMetrics: MetricItem[] = (data.metrics || []).map((m: any) => ({
+    // Store project data
+    setPendingProjectData(data);
+    setIsCreateDialogOpen(false);
+    
+    // Step 1: Show AI-recommended metrics first
+    setTimeout(() => {
+      setIsRecommendedMetricsDialogOpen(true);
+    }, 100);
+  };
+
+  const handleRecommendedMetricsSubmit = async (selectedRecommendedMetrics: RecommendedMetric[]) => {
+    // Close recommended metrics dialog
+    setIsRecommendedMetricsDialogOpen(false);
+    
+    // Store recommended metrics
+    setRecommendedMetrics(selectedRecommendedMetrics);
+    
+    // Step 2: Extract and show user/file metrics if available
+    const userMetrics: MetricItem[] = (pendingProjectData.metrics || []).map((m: any) => ({
       name: m.name,
       value: m.value,
       source: "user" as const
@@ -157,23 +178,24 @@ export default function Projects() {
 
     let allMetrics = [...userMetrics];
 
-    if (data.uploadedFile) {
-      const fileMetrics = await extractMetricsFromFile(data.uploadedFile);
+    if (pendingProjectData.uploadedFile) {
+      const fileMetrics = await extractMetricsFromFile(pendingProjectData.uploadedFile);
       allMetrics = [...allMetrics, ...fileMetrics];
     }
-
-    setPendingProjectData(data);
-    setIsCreateDialogOpen(false);
     
     if (allMetrics.length > 0) {
       setPendingMetrics(allMetrics);
-      setIsMetricsDialogOpen(true);
+      setTimeout(() => {
+        setIsMetricsDialogOpen(true);
+      }, 100);
     } else {
-      console.log('Project created with no metrics:', data);
-      toast({
-        title: "Project Created",
-        description: "Your sustainability project has been created successfully.",
-      });
+      // No user/file metrics, proceed directly to similarity
+      const recommendedAsMetrics = selectedRecommendedMetrics.map(m => ({
+        name: m.name,
+        value: m.value,
+        source: "user" as const
+      }));
+      handleMetricsConfirm(recommendedAsMetrics);
     }
   };
 
@@ -357,15 +379,15 @@ export default function Projects() {
     }, 100);
   };
 
-  const handleCategoryMetricsSubmit = (category: string, additionalMetrics: RecommendedMetric[]) => {
-    const allMetrics = [
-      ...pendingMetrics,
-      ...additionalMetrics.map(m => ({
-        name: m.name,
-        value: m.value,
-        source: "recommended" as const
-      }))
-    ];
+  const handleCategoryMetricsSubmit = (category: string) => {
+    // Combine recommended metrics and user/file metrics
+    const recommendedAsMetrics = recommendedMetrics.map(m => ({
+      name: m.name,
+      value: m.value,
+      source: "user" as const
+    }));
+    
+    const allMetrics = [...recommendedAsMetrics, ...pendingMetrics];
 
     console.log('Final project created:', {
       ...pendingProjectData,
@@ -379,6 +401,7 @@ export default function Projects() {
     });
 
     setPendingMetrics([]);
+    setRecommendedMetrics([]);
     setPendingProjectData(null);
     setIsCategoryMetricsDialogOpen(false);
 
@@ -478,6 +501,13 @@ export default function Projects() {
         </div>
       )}
 
+      <RecommendedMetricsDialog
+        open={isRecommendedMetricsDialogOpen}
+        onOpenChange={setIsRecommendedMetricsDialogOpen}
+        projectDescription={pendingProjectData?.description || ""}
+        onSubmit={handleRecommendedMetricsSubmit}
+      />
+
       <MetricsSelectionDialog
         open={isMetricsDialogOpen}
         onOpenChange={setIsMetricsDialogOpen}
@@ -498,7 +528,6 @@ export default function Projects() {
         open={isCategoryMetricsDialogOpen}
         onOpenChange={setIsCategoryMetricsDialogOpen}
         suggestedCategory={suggestedCategory}
-        existingMetrics={pendingMetrics.map(m => m.name)}
         onSubmit={handleCategoryMetricsSubmit}
       />
     </div>
