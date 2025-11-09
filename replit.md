@@ -127,3 +127,5 @@ Preferred communication style: Simple, everyday language.
 - **Unified Metrics Dialog**: Combined AI-recommended, user-entered, and file-extracted metrics into single selection interface during project creation
 - **Comparison Page Organization**: Reorganized metrics comparison to show overlapping metrics in unified table first, followed by project-specific unique metrics in separate cards
 - **Component Updates**: Enhanced RecommendedMetricsDialog to handle multiple metric sources with combined selection state
+- **Dashboard Layout Optimization**: Improved visibility and user experience with semantic sections ("Key Metrics", "Analytics Overview", "Recent Projects"), balanced 3-column chart layout, better spacing (space-y-8), and enhanced responsive grid breakpoints for mobile/tablet/desktop views
+- **Chart Visibility Fix**: Fixed Impact vs. Cost Matrix axis labels by expanding SVG viewBox and repositioning "Impact →" label for full visibility
