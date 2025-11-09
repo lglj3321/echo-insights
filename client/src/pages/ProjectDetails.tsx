@@ -80,20 +80,88 @@ export default function ProjectDetails() {
     "Social Impact": 10,
   });
 
-  const mockProject = {
-    id: projectId,
-    title: "100% Recycled Packaging Initiative",
-    description: "Transition all product packaging to 100% recycled materials to reduce environmental impact and meet our 2025 sustainability goals. This initiative includes redesigning packaging, sourcing certified recycled materials, and educating consumers about proper recycling.",
-    category: "Packaging",
-    estimatedCost: 45000,
-    roi: 18,
-    status: "active",
-    createdAt: "2024-10-15",
-    uploadedFiles: [
-      { name: "packaging-analysis.pdf", size: "2.4 MB", uploadedAt: "2024-10-15" },
-      { name: "supplier-quotes.xlsx", size: "456 KB", uploadedAt: "2024-10-16" },
-    ],
-  };
+  // TODO: Remove mock data - replace with actual API data
+  const mockProjects = [
+    {
+      id: "1",
+      title: "100% Recycled Packaging Initiative",
+      description: "Transition all product packaging to 100% recycled materials to reduce environmental impact and meet our 2025 sustainability goals. This initiative includes redesigning packaging, sourcing certified recycled materials, and educating consumers about proper recycling.",
+      category: "Packaging",
+      estimatedCost: 45000,
+      roi: 18,
+      status: "active",
+      createdAt: "2024-10-15",
+      uploadedFiles: [
+        { name: "packaging-analysis.pdf", size: "2.4 MB", uploadedAt: "2024-10-15" },
+        { name: "supplier-quotes.xlsx", size: "456 KB", uploadedAt: "2024-10-16" },
+      ],
+    },
+    {
+      id: "2",
+      title: "Solar Energy Installation",
+      description: "Install solar panels on manufacturing facilities to reduce energy costs and carbon emissions. This comprehensive project includes site assessment, installation, and grid integration.",
+      category: "Energy",
+      estimatedCost: 120000,
+      roi: 25,
+      status: "active",
+      createdAt: "2024-09-20",
+      uploadedFiles: [
+        { name: "solar-feasibility-study.pdf", size: "3.1 MB", uploadedAt: "2024-09-20" },
+      ],
+    },
+    {
+      id: "3",
+      title: "Local Sourcing Initiative",
+      description: "Source 80% of ingredients from local suppliers within 100 miles to reduce transportation emissions and support the local economy.",
+      category: "Sourcing",
+      estimatedCost: 28000,
+      roi: 12,
+      status: "active",
+      createdAt: "2024-08-10",
+      uploadedFiles: [],
+    },
+    {
+      id: "4",
+      title: "Water Recycling System",
+      description: "Implement advanced water recycling in production facilities to reduce water consumption by 60% and lower utility costs.",
+      category: "Water",
+      estimatedCost: 75000,
+      roi: 20,
+      status: "active",
+      createdAt: "2024-07-15",
+      uploadedFiles: [
+        { name: "water-system-blueprint.pdf", size: "1.8 MB", uploadedAt: "2024-07-15" },
+        { name: "cost-analysis.xlsx", size: "320 KB", uploadedAt: "2024-07-16" },
+      ],
+    },
+    {
+      id: "5",
+      title: "Zero Waste Initiative",
+      description: "Achieve zero waste to landfill by 2025 through comprehensive recycling, composting, and waste reduction programs.",
+      category: "Waste",
+      estimatedCost: 35000,
+      roi: 15,
+      status: "active",
+      createdAt: "2024-06-01",
+      uploadedFiles: [],
+    },
+    {
+      id: "6",
+      title: "Electric Fleet Transition",
+      description: "Replace delivery vehicles with electric alternatives to reduce emissions and fuel costs while improving brand image.",
+      category: "Logistics",
+      estimatedCost: 95000,
+      roi: 22,
+      status: "active",
+      createdAt: "2024-05-12",
+      uploadedFiles: [
+        { name: "fleet-analysis.pdf", size: "2.2 MB", uploadedAt: "2024-05-12" },
+      ],
+    },
+  ];
+
+  // Find the specific project by ID, or default to the first one
+  const mockProject = mockProjects.find(p => p.id === projectId) || mockProjects[0];
 
   const mockMetrics: MetricScore[] = [
     { name: "CO₂ Emissions Reduced", value: "3.2 Tons/Quarter", normalizedScore: 85, type: "Environmental Impact" },
