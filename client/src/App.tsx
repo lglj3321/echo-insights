@@ -12,6 +12,7 @@ import ProjectDetails from "@/pages/ProjectDetails";
 import Forecast from "@/pages/Forecast";
 import Comparison from "@/pages/Comparison";
 import Feedback from "@/pages/Feedback";
+import SurveyResults from "@/pages/SurveyResults";
 import Analytics from "@/pages/Analytics";
 import Settings from "@/pages/Settings";
 import Survey from "@/pages/Survey";
@@ -27,6 +28,7 @@ function Router() {
       <Route path="/project/:id/forecast" component={Forecast} />
       <Route path="/comparison" component={Comparison} />
       <Route path="/feedback" component={Feedback} />
+      <Route path="/feedback/:id" component={SurveyResults} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/goals" component={Goals} />
       <Route path="/team" component={Team} />
