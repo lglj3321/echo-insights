@@ -115,3 +115,15 @@ Preferred communication style: Simple, everyday language.
 **Dual Navigation Paradigm**: Company dashboards use persistent sidebar navigation; consumer surveys have minimal header-only navigation for mobile focus.
 
 **Progressive Metric Discovery**: Dialogs guide users through selecting relevant metrics for their project category with AI-assisted suggestions.
+
+**Unified Metrics Selection**: Project creation now shows AI-recommended, user-entered, and file-extracted metrics together in a single dialog for streamlined metric selection without switching between separate screens.
+
+**Organized Comparison View**: The project comparison page separates metrics into "Overlapping Metrics" (shared across all selected projects) and "Unique Metrics" (project-specific) for clearer analysis.
+
+## Recent Changes
+
+### November 2025
+- **Dashboard Streamlining**: Removed redundant "New Project" button from Dashboard page (project creation only available from Projects page)
+- **Unified Metrics Dialog**: Combined AI-recommended, user-entered, and file-extracted metrics into single selection interface during project creation
+- **Comparison Page Organization**: Reorganized metrics comparison to show overlapping metrics in unified table first, followed by project-specific unique metrics in separate cards
+- **Component Updates**: Enhanced RecommendedMetricsDialog to handle multiple metric sources with combined selection state
