@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import { Sparkles, TrendingUp, Info, User, FileText, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -42,7 +43,7 @@ interface RecommendedMetricsDialogProps {
   customMetrics?: CustomMetric[];
   apiDetectedCategory?: string | null;
   classificationConfidence?: number;
-  onSubmit: (selectedAIMetrics: RecommendedMetric[], selectedCustomMetrics: CustomMetric[]) => void;
+  onSubmit: (selectedAIMetrics: RecommendedMetric[], selectedCustomMetrics: CustomMetric[], customCategoryName?: string) => void;
   onGoBack?: () => void;
 }
 
@@ -135,6 +136,7 @@ export function RecommendedMetricsDialog({
   // Track selected category (can be overridden by user)
   const [selectedCategory, setSelectedCategory] = useState<string>(detectedCategory);
   const [isManuallySelected, setIsManuallySelected] = useState(false);
+  const [customCategoryName, setCustomCategoryName] = useState<string>("");
   
   // Show no AI metrics for "Other" category
   const recommendedMetrics = selectedCategory === "Other" ? [] : (RECOMMENDED_METRICS_BY_CATEGORY[selectedCategory] || []);
@@ -148,6 +150,7 @@ export function RecommendedMetricsDialog({
       // Reset to detected category when dialog opens
       setSelectedCategory(detectedCategory);
       setIsManuallySelected(false);
+      setCustomCategoryName("");
       
       // Pre-select all custom metrics by default
       const preselected = new Set(customMetrics.map((_, index) => `custom-${index}`));
@@ -178,11 +181,12 @@ export function RecommendedMetricsDialog({
   const handleSubmit = () => {
     const selectedAI = recommendedMetrics.filter((_, index) => selectedMetrics.has(`ai-${index}`));
     const selectedCustom = customMetrics.filter((_, index) => selectedMetrics.has(`custom-${index}`));
-    onSubmit(selectedAI, selectedCustom);
+    const categoryName = selectedCategory === "Other" && customCategoryName.trim() ? customCategoryName.trim() : undefined;
+    onSubmit(selectedAI, selectedCustom, categoryName);
   };
 
   const handleSkip = () => {
-    onSubmit([], []);
+    onSubmit([], [], undefined);
   };
 
   const userMetrics = customMetrics.filter(m => m.source === "user");
@@ -242,6 +246,26 @@ export function RecommendedMetricsDialog({
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Custom Category Name Input for "Other" */}
+            {selectedCategory === "Other" && (
+              <div className="space-y-2 mt-3">
+                <label htmlFor="custom-category" className="text-sm font-medium">
+                  Category Name (Optional)
+                </label>
+                <Input
+                  id="custom-category"
+                  placeholder="e.g., Transportation, Animal Welfare, Community Engagement"
+                  value={customCategoryName}
+                  onChange={(e) => setCustomCategoryName(e.target.value)}
+                  data-testid="input-custom-category"
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter a custom name for this project category. This will be stored and used to identify similar projects.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* AI-Recommended Metrics Section */}

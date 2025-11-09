@@ -28,6 +28,7 @@ export const projects = pgTable("projects", {
   title: text("title").notNull(),
   description: text("description").notNull(),
   type: text("type").notNull(),
+  customCategory: text("custom_category"),
   estimatedCost: decimal("estimated_cost", { precision: 12, scale: 2 }).notNull(),
   actualCost: decimal("actual_cost", { precision: 12, scale: 2 }),
   roi: decimal("roi", { precision: 5, scale: 2 }).notNull(),
