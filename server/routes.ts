@@ -13,6 +13,15 @@ import {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Projects API
+  app.get("/api/auth/user", async (req, res) => {
+    res.json({
+      id: "dev-user-1",
+      email: "demo@example.com",
+      firstName: "Demo",
+      lastName: "User",
+    });
+  });
+
   app.get("/api/projects", async (req, res) => {
     try {
       const userId = req.query.userId as string;

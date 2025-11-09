@@ -34,9 +34,12 @@ import {
 import { Plus, Search, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function Projects() {
   const { toast } = useToast();
+  const { user, isLoading: isLoadingUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -673,27 +676,62 @@ export default function Projects() {
     }, 100);
   };
 
-  const handleCategoryMetricsSubmit = (category: string) => {
+  const handleCategoryMetricsSubmit = async (category: string) => {
     const displayCategory = pendingProjectData?.customCategory || category;
     
-    console.log("Final project created:", {
-      ...pendingProjectData,
-      type: category,
-      customCategory: pendingProjectData?.customCategory,
-      metrics: pendingMetrics,
-    });
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "User not authenticated. Please refresh the page.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      const projectPayload = {
+        ...pendingProjectData,
+        userId: user.id,
+        type: category,
+        customCategory: pendingProjectData?.customCategory,
+        estimatedCost: String(pendingProjectData?.estimatedCost || 0),
+        roi: String(pendingProjectData?.roi || 0),
+        co2Saved: String(pendingProjectData?.co2Saved || 0),
+      };
+      
+      console.log("Creating project:", projectPayload);
+      
+      const response = await apiRequest("POST", "/api/projects", projectPayload);
+      const project = await response.json();
+      const projectId = project.id;
+      
+      if (pendingMetrics.length > 0) {
+        await Promise.all(
+          pendingMetrics.map((metric) =>
+            apiRequest("POST", `/api/projects/${projectId}/metrics`, metric)
+          )
+        );
+      }
 
-    toast({
-      title: "Project Created Successfully",
-      description: `Your ${displayCategory} project has been created with ${pendingMetrics.length} metrics.`,
-    });
+      toast({
+        title: "Project Created Successfully",
+        description: `Your ${displayCategory} project has been created with ${pendingMetrics.length} metrics.`,
+      });
 
-    setPendingMetrics([]);
-    setPendingCustomMetrics([]);
-    setPendingProjectData(null);
-    setIsCategoryMetricsDialogOpen(false);
+      setPendingMetrics([]);
+      setPendingCustomMetrics([]);
+      setPendingProjectData(null);
+      setIsCategoryMetricsDialogOpen(false);
 
-    window.location.href = "/project/new-project-id";
+      window.location.href = `/project/${projectId}`;
+    } catch (error) {
+      console.error("Failed to create project:", error);
+      toast({
+        title: "Error Creating Project",
+        description: "Failed to create project. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
