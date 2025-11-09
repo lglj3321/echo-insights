@@ -104,12 +104,6 @@ const categorizeFromDescription = (description: string): string => {
     return "Sourcing";
   }
   
-  // Logistics-specific
-  if (desc.includes("logistic") || desc.includes("transport") || desc.includes("deliver") || 
-      desc.includes("fleet") || desc.includes("vehicle") || desc.includes("shipping")) {
-    return "Logistics";
-  }
-  
   // Packaging (check last to avoid catching water recycling)
   if (desc.includes("packag") || desc.includes("box") || desc.includes("container") || 
       desc.includes("material recycl") || desc.includes("biodegradable")) {
@@ -119,7 +113,7 @@ const categorizeFromDescription = (description: string): string => {
   return "Packaging";
 };
 
-const CATEGORY_OPTIONS = ["Packaging", "Energy", "Sourcing", "Waste", "Water", "Logistics"];
+const CATEGORY_OPTIONS = ["Packaging", "Energy", "Sourcing", "Waste", "Water"];
 
 export function RecommendedMetricsDialog({
   open,

@@ -41,7 +41,7 @@ const PROJECT_CATEGORIES = [
   "Sourcing",
   "Waste",
   "Water",
-  "Logistics",
+  // "Logistics",
 ];
 
 const RECOMMENDED_METRICS_BY_CATEGORY: Record<string, RecommendedMetric[]> = {
