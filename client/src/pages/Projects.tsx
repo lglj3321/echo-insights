@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import Papa from "papaparse";
 import { ProjectCard, Project } from "@/components/ProjectCard";
 import { ProjectForm } from "@/components/ProjectForm";
@@ -28,15 +30,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, RefreshCw } from "lucide-react";
+import { Plus, Search, RefreshCw, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function Projects() {
   const { toast } = useToast();
   const { user, isLoading: isLoadingUser } = useAuth();
+  const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -54,84 +57,36 @@ export default function Projects() {
   const [detectedCategory, setDetectedCategory] = useState<string | null>(null);
   const [classificationConfidence, setClassificationConfidence] = useState<number>(0);
 
-  // TODO: Remove mock data - replace with actual API data
-  const mockProjects: Project[] = [
-    {
-      id: "1",
-      title: "100% Recycled Packaging",
-      description: "Switch all product packaging to 100% recycled materials",
-      type: "Packaging",
-      estimatedCost: 45000,
-      roi: 18,
-      waterSaved: 500,
-      feedbackScore: 4.6,
-      responseCount: 234,
-      impactScore: 82,
-    },
-    {
-      id: "2",
-      title: "Solar Energy Installation",
-      description: "Install solar panels on manufacturing facilities",
-      type: "Energy",
-      estimatedCost: 120000,
-      roi: 25,
-      feedbackScore: 4.1,
-      responseCount: 156,
-      impactScore: 91,
-    },
-    {
-      id: "3",
-      title: "Local Sourcing Initiative",
-      description: "Source 80% of ingredients from local suppliers",
-      type: "Sourcing",
-      estimatedCost: 28000,
-      roi: 12,
-      feedbackScore: 4.8,
-      responseCount: 312,
-      impactScore: 76,
-    },
-    {
-      id: "4",
-      title: "Water Recycling System",
-      description: "Implement advanced water recycling in production",
-      type: "Water",
-      estimatedCost: 75000,
-      roi: 20,
-      feedbackScore: 4.3,
-      responseCount: 189,
-      impactScore: 85,
-    },
-    {
-      id: "5",
-      title: "Zero Waste Initiative",
-      description: "Achieve zero waste to landfill by 2025",
-      type: "Waste",
-      estimatedCost: 35000,
-      roi: 15,
-      feedbackScore: 4.4,
-      responseCount: 201,
-      impactScore: 78,
-    },
-    {
-      id: "6",
-      title: "Electric Fleet Transition",
-      description: "Replace delivery vehicles with electric alternatives",
-      type: "Logistics",
-      estimatedCost: 95000,
-      roi: 22,
-      feedbackScore: 4.2,
-      responseCount: 167,
-      impactScore: 88,
-    },
-  ];
+  // Type guard for user
+  const typedUser = user as { id: string; email: string; name: string } | null;
 
-  const filteredProjects = mockProjects.filter((project) => {
-    const matchesSearch =
-      project.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      project.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = filterType === "all" || project.type === filterType;
-    return matchesSearch && matchesType;
+  // Fetch projects from API
+  const { data: projects = [], isLoading: isLoadingProjects, error: projectsError } = useQuery<Project[]>({
+    queryKey: ['/api/projects', { userId: typedUser?.id }],
+    enabled: !!typedUser,
   });
+
+  // Show error toast if projects fail to load (only once)
+  useEffect(() => {
+    if (projectsError) {
+      toast({
+        title: "Error Loading Projects",
+        description: "Failed to load projects. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [projectsError, toast]);
+
+  // Filter projects based on search and type filter
+  const filteredProjects = useMemo(() => {
+    return projects.filter((project) => {
+      const matchesSearch =
+        project.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        project.description.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesType = filterType === "all" || project.type === filterType;
+      return matchesSearch && matchesType;
+    });
+  }, [projects, searchQuery, filterType]);
 
   const projectTypes = ["Packaging", "Energy", "Sourcing", "Waste", "Water"];
   // const projectTypes = ["Packaging", "Energy", "Sourcing", "Waste", "Water", "Logistics"];
@@ -465,8 +420,8 @@ export default function Projects() {
     setPendingMetrics(selectedMetrics);
 
     // Calculate similarity with existing projects
-    const similar = mockProjects
-      .map((project) => {
+    const similar = projects
+      .map((project: Project) => {
         const { similarity, matchReasons } = calculateSimilarity(
           pendingProjectData,
           project,
@@ -479,9 +434,9 @@ export default function Projects() {
       .slice(0, 3);
 
     console.log("Similarity analysis results:", {
-      totalProjects: mockProjects.length,
+      totalProjects: projects.length,
       similarFound: similar.length,
-      topMatches: similar.map((s) => ({
+      topMatches: similar.map((s: any) => ({
         title: s.project.title,
         similarity: s.similarity,
       })),
@@ -507,7 +462,7 @@ export default function Projects() {
   };
 
   const handleMergeProject = (projectId: string) => {
-    const mergeWith = mockProjects.find((p) => p.id === projectId);
+    const mergeWith = projects.find((p: Project) => p.id === projectId);
 
     // Store merge context in sessionStorage for the details page to pick up
     sessionStorage.setItem(
@@ -648,23 +603,17 @@ export default function Projects() {
     return topCategory[1] > 0 ? topCategory[0] : "Packaging";
   };
 
-  const handleFinalizeProject = async (category: string) => {
-    const displayCategory = pendingProjectData?.customCategory || category;
-    
-    if (!user) {
-      toast({
-        title: "Error",
-        description: "User not authenticated. Please refresh the page.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    try {
+  // Mutation for creating project
+  const createProjectMutation = useMutation({
+    mutationFn: async () => {
+      if (!typedUser) {
+        throw new Error("User not authenticated");
+      }
+      
       const projectPayload = {
         ...pendingProjectData,
-        userId: user.id,
-        type: category,
+        userId: typedUser.id,
+        type: pendingProjectData?.type || suggestedCategory,
         customCategory: pendingProjectData?.customCategory,
         estimatedCost: String(pendingProjectData?.estimatedCost || 0),
         roi: String(pendingProjectData?.roi || 0),
@@ -676,6 +625,7 @@ export default function Projects() {
       const project = await response.json();
       const projectId = project.id;
       
+      // Create metrics
       if (pendingMetrics.length > 0) {
         await Promise.all(
           pendingMetrics.map((metric) =>
@@ -683,26 +633,47 @@ export default function Projects() {
           )
         );
       }
-
+      
+      return { projectId, projectTitle: projectPayload.title, metricsCount: pendingMetrics.length };
+    },
+    onSuccess: async ({ projectId, projectTitle, metricsCount }) => {
+      // Invalidate projects cache
+      await queryClient.invalidateQueries({ queryKey: ['/api/projects', { userId: typedUser?.id }] });
+      
       toast({
         title: "Project Created Successfully",
-        description: `Your ${displayCategory} project has been created with ${pendingMetrics.length} metrics.`,
+        description: `Your project has been created with ${metricsCount} metric${metricsCount !== 1 ? 's' : ''}.`,
       });
 
+      // Clear pending state
       setPendingMetrics([]);
       setPendingCustomMetrics([]);
       setPendingProjectData(null);
       setIsFinalizeDialogOpen(false);
 
-      window.location.href = `/project/${projectId}`;
-    } catch (error) {
+      // Navigate to project details
+      navigate(`/project/${projectId}`);
+    },
+    onError: (error) => {
       console.error("Failed to create project:", error);
       toast({
         title: "Error Creating Project",
         description: "Failed to create project. Please try again.",
         variant: "destructive",
       });
+    },
+  });
+
+  const handleFinalizeProject = () => {
+    if (!typedUser) {
+      toast({
+        title: "Error",
+        description: "User not authenticated. Please refresh the page.",
+        variant: "destructive",
+      });
+      return;
     }
+    createProjectMutation.mutate();
   };
 
   return (
@@ -775,10 +746,10 @@ export default function Projects() {
           onClick={() => setFilterType("all")}
           data-testid="badge-filter-all"
         >
-          All ({mockProjects.length})
+          All ({projects.length})
         </Badge>
         {projectTypes.map((type) => {
-          const count = mockProjects.filter((p) => p.type === type).length;
+          const count = projects.filter((p: Project) => p.type === type).length;
           return (
             <Badge
               key={type}
@@ -842,7 +813,6 @@ export default function Projects() {
         open={isFinalizeDialogOpen}
         onOpenChange={setIsFinalizeDialogOpen}
         similarProjects={similarProjects}
-        suggestedCategory={detectedCategory || categorizeProject(pendingProjectData, pendingMetrics)}
         onMerge={handleMergeProject}
         onCancel={handleCancelProject}
         onFinalize={handleFinalizeProject}

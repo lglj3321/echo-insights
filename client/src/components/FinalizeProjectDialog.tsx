@@ -12,14 +12,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { 
   AlertTriangle, 
   Merge, 
@@ -29,8 +21,7 @@ import {
   DollarSign,
   ChevronRight,
   ExternalLink,
-  Tag,
-  Sparkles
+  Tag
 } from "lucide-react";
 import { Project } from "@/components/ProjectCard";
 import { Link } from "wouter";
@@ -45,37 +36,21 @@ interface FinalizeProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   similarProjects: SimilarProject[];
-  suggestedCategory: string;
   onMerge: (projectId: string) => void;
   onCancel: () => void;
-  onFinalize: (category: string) => void;
+  onFinalize: () => void;
 }
-
-const PROJECT_CATEGORIES = [
-  "Packaging",
-  "Energy",
-  "Sourcing",
-  "Waste",
-  "Water",
-  "Other",
-];
 
 export function FinalizeProjectDialog({
   open,
   onOpenChange,
   similarProjects,
-  suggestedCategory,
   onMerge,
   onCancel,
   onFinalize,
 }: FinalizeProjectDialogProps) {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [expandedProject, setExpandedProject] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState(suggestedCategory);
-
-  useEffect(() => {
-    setSelectedCategory(suggestedCategory);
-  }, [suggestedCategory]);
 
   const hasSimilarProjects = similarProjects.length > 0;
 
@@ -104,7 +79,7 @@ export function FinalizeProjectDialog({
   };
 
   const handleFinalize = () => {
-    onFinalize(selectedCategory);
+    onFinalize();
     onOpenChange(false);
   };
 
@@ -133,7 +108,7 @@ export function FinalizeProjectDialog({
               </>
             ) : (
               <>
-                Your project appears to be unique! Review the AI-suggested category and finalize your project.
+                Your project appears to be unique! Finalize your project to continue.
               </>
             )}
           </DialogDescription>
@@ -272,38 +247,6 @@ export function FinalizeProjectDialog({
             </div>
           )}
 
-          {/* Category Selection Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Sparkles className="h-4 w-4" />
-                Project Category
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="category-select">
-                  AI-Suggested: <Badge variant="default" className="ml-2">{suggestedCategory}</Badge>
-                </Label>
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger id="category-select" data-testid="select-category">
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PROJECT_CATEGORIES.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Category determined by analyzing your project description and selected metrics
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Empty State */}
           {!hasSimilarProjects && (
             <div className="text-center py-8">
@@ -325,7 +268,7 @@ export function FinalizeProjectDialog({
                 ? selectedProject 
                   ? 'Merging will combine data with the selected project' 
                   : 'Choose an action to continue'
-                : 'Review category and finalize your project'
+                : 'Finalize your project to continue'
               }
             </p>
             <div className="flex gap-2 flex-wrap">
