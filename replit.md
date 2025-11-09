@@ -118,6 +118,8 @@ Preferred communication style: Simple, everyday language.
 
 **Unified Metrics Selection**: Project creation now shows AI-recommended, user-entered, and file-extracted metrics together in a single dialog for streamlined metric selection without switching between separate screens.
 
+**Manual Category Override**: Users can manually select a different project category if they disagree with the AI-detected category, which updates the recommended metrics accordingly while preserving custom metric selections.
+
 **Organized Comparison View**: The project comparison page separates metrics into "Overlapping Metrics" (shared across all selected projects) and "Unique Metrics" (project-specific) for clearer analysis.
 
 ## Recent Changes
@@ -130,3 +132,4 @@ Preferred communication style: Simple, everyday language.
 - **Dashboard Layout Optimization**: Improved visibility and user experience with semantic sections ("Key Metrics", "Analytics Overview", "Recent Projects"), balanced 3-column chart layout, better spacing (space-y-8), and enhanced responsive grid breakpoints for mobile/tablet/desktop views
 - **Chart Visibility Fix**: Fixed Impact vs. Cost Matrix axis labels by expanding SVG viewBox and repositioning "Impact →" label for full visibility
 - **Analytics Chart Alignment**: Standardized all 3 Analytics Overview charts (Impact vs. Cost Matrix, Projects by Type, Feedback Trend) to use identical square aspect ratios, consistent CardHeader format with descriptions, and legends positioned below charts for uniform appearance and improved readability
+- **Manual Category Selection**: Added category selector dropdown to 'Select Project Metrics' dialog, allowing users to override AI-detected category and view different metric recommendations. The AI-detected category remains marked in the dropdown for reference, and custom metrics are preserved when changing categories.
