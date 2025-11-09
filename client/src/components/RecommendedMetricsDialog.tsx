@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Sparkles, TrendingUp, Info } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Sparkles, TrendingUp, Info, User, FileText } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export interface RecommendedMetric {
@@ -21,11 +22,18 @@ export interface RecommendedMetric {
   reason?: string;
 }
 
+export interface CustomMetric {
+  name: string;
+  value: string;
+  source: "user" | "file";
+}
+
 interface RecommendedMetricsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectDescription: string;
-  onSubmit: (selectedMetrics: RecommendedMetric[]) => void;
+  customMetrics?: CustomMetric[];
+  onSubmit: (selectedAIMetrics: RecommendedMetric[], selectedCustomMetrics: CustomMetric[]) => void;
 }
 
 const RECOMMENDED_METRICS_BY_CATEGORY: Record<string, RecommendedMetric[]> = {
@@ -108,38 +116,46 @@ export function RecommendedMetricsDialog({
   open,
   onOpenChange,
   projectDescription,
+  customMetrics = [],
   onSubmit,
 }: RecommendedMetricsDialogProps) {
   const detectedCategory = categorizeFromDescription(projectDescription);
   const recommendedMetrics = RECOMMENDED_METRICS_BY_CATEGORY[detectedCategory] || [];
   
-  const [selectedMetrics, setSelectedMetrics] = useState<Set<number>>(new Set());
+  // Use combined selection state with keys like "ai-0", "custom-0", etc.
+  const [selectedMetrics, setSelectedMetrics] = useState<Set<string>>(new Set());
 
   // Reset selections when dialog opens with new project
   useEffect(() => {
     if (open) {
-      setSelectedMetrics(new Set());
+      // Pre-select all custom metrics by default
+      const preselected = new Set(customMetrics.map((_, index) => `custom-${index}`));
+      setSelectedMetrics(preselected);
     }
-  }, [open]);
+  }, [open, customMetrics]);
 
-  const toggleMetric = (index: number) => {
+  const toggleMetric = (key: string) => {
     const newSelected = new Set(selectedMetrics);
-    if (newSelected.has(index)) {
-      newSelected.delete(index);
+    if (newSelected.has(key)) {
+      newSelected.delete(key);
     } else {
-      newSelected.add(index);
+      newSelected.add(key);
     }
     setSelectedMetrics(newSelected);
   };
 
   const handleSubmit = () => {
-    const selected = recommendedMetrics.filter((_, index) => selectedMetrics.has(index));
-    onSubmit(selected);
+    const selectedAI = recommendedMetrics.filter((_, index) => selectedMetrics.has(`ai-${index}`));
+    const selectedCustom = customMetrics.filter((_, index) => selectedMetrics.has(`custom-${index}`));
+    onSubmit(selectedAI, selectedCustom);
   };
 
   const handleSkip = () => {
-    onSubmit([]);
+    onSubmit([], []);
   };
+
+  const userMetrics = customMetrics.filter(m => m.source === "user");
+  const fileMetrics = customMetrics.filter(m => m.source === "file");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -147,65 +163,136 @@ export function RecommendedMetricsDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            AI-Recommended Metrics
+            Select Project Metrics
           </DialogTitle>
           <DialogDescription>
-            Based on your project description, we suggest tracking these key sustainability metrics. Select the ones that fit your goals.
+            Review AI-recommended metrics and your custom entries. Select the ones you want to track for this project.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription>
-              <span className="font-semibold">Detected Category: {detectedCategory}</span>
-              <p className="text-sm mt-1">
-                These metrics are commonly used for {detectedCategory.toLowerCase()} projects to measure impact and progress.
-              </p>
-            </AlertDescription>
-          </Alert>
+        <div className="space-y-6">
+          {/* AI-Recommended Metrics Section */}
+          {recommendedMetrics.length > 0 && (
+            <>
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  <span className="font-semibold">Detected Category: {detectedCategory}</span>
+                  <p className="text-sm mt-1">
+                    Based on your project description, we suggest these metrics commonly used for {detectedCategory.toLowerCase()} projects.
+                  </p>
+                </AlertDescription>
+              </Alert>
 
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-2 mb-4">
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                <h3 className="font-semibold">Suggested Metrics</h3>
-                <Badge variant="outline" className="ml-auto">
-                  {recommendedMetrics.length} available
-                </Badge>
-              </div>
-
-              <div className="space-y-2">
-                {recommendedMetrics.map((metric, index) => (
-                  <div
-                    key={index}
-                    className="flex items-start gap-3 p-3 rounded-lg border hover-elevate"
-                    data-testid={`ai-metric-${index}`}
-                  >
-                    <Checkbox
-                      checked={selectedMetrics.has(index)}
-                      onCheckedChange={() => toggleMetric(index)}
-                      data-testid={`checkbox-ai-${index}`}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium">{metric.name}</p>
-                      <p className="text-sm text-muted-foreground">Unit: {metric.value}</p>
-                      {metric.reason && (
-                        <p className="text-xs text-muted-foreground mt-1">{metric.reason}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {recommendedMetrics.length === 0 && (
-                <div className="text-center py-6 text-muted-foreground">
-                  <p>No recommendations available</p>
-                  <p className="text-sm mt-1">You can add custom metrics in the next step</p>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="font-semibold">AI-Recommended Metrics</h3>
+                  <Badge variant="outline" className="ml-auto">
+                    {recommendedMetrics.length} suggested
+                  </Badge>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                <div className="space-y-2">
+                  {recommendedMetrics.map((metric, index) => (
+                    <div
+                      key={index}
+                      className="flex items-start gap-3 p-3 rounded-lg border hover-elevate"
+                      data-testid={`ai-metric-${index}`}
+                    >
+                      <Checkbox
+                        checked={selectedMetrics.has(`ai-${index}`)}
+                        onCheckedChange={() => toggleMetric(`ai-${index}`)}
+                        data-testid={`checkbox-ai-${index}`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium">{metric.name}</p>
+                        <p className="text-sm text-muted-foreground">Unit: {metric.value}</p>
+                        {metric.reason && (
+                          <p className="text-xs text-muted-foreground mt-1">{metric.reason}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* User-Entered Metrics Section */}
+          {userMetrics.length > 0 && (
+            <>
+              {recommendedMetrics.length > 0 && <Separator />}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="font-semibold">Your Custom Metrics</h3>
+                  <Badge variant="outline" className="ml-auto">
+                    {userMetrics.length} entered
+                  </Badge>
+                </div>
+                <div className="space-y-2">
+                  {customMetrics.map((metric, index) => {
+                    if (metric.source !== "user") return null;
+                    return (
+                      <div
+                        key={index}
+                        className="flex items-start gap-3 p-3 rounded-lg border hover-elevate"
+                        data-testid={`user-metric-${index}`}
+                      >
+                        <Checkbox
+                          checked={selectedMetrics.has(`custom-${index}`)}
+                          onCheckedChange={() => toggleMetric(`custom-${index}`)}
+                          data-testid={`checkbox-custom-${index}`}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium">{metric.name}</p>
+                          <p className="text-sm text-muted-foreground">{metric.value}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* File-Extracted Metrics Section */}
+          {fileMetrics.length > 0 && (
+            <>
+              <Separator />
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="font-semibold">Extracted from File</h3>
+                  <Badge variant="outline" className="ml-auto">
+                    {fileMetrics.length} detected
+                  </Badge>
+                </div>
+                <div className="space-y-2">
+                  {customMetrics.map((metric, index) => {
+                    if (metric.source !== "file") return null;
+                    return (
+                      <div
+                        key={index}
+                        className="flex items-start gap-3 p-3 rounded-lg border hover-elevate"
+                        data-testid={`file-metric-${index}`}
+                      >
+                        <Checkbox
+                          checked={selectedMetrics.has(`custom-${index}`)}
+                          onCheckedChange={() => toggleMetric(`custom-${index}`)}
+                          data-testid={`checkbox-custom-${index}`}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium">{metric.name}</p>
+                          <p className="text-sm text-muted-foreground">{metric.value}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
 
           <Alert>
             <AlertDescription className="text-sm">
@@ -223,15 +310,15 @@ export function RecommendedMetricsDialog({
               <Button
                 variant="outline"
                 onClick={handleSkip}
-                data-testid="button-skip-recommendations"
+                data-testid="button-skip-metrics"
               >
                 Skip for Now
               </Button>
               <Button
                 onClick={handleSubmit}
-                data-testid="button-accept-recommendations"
+                data-testid="button-confirm-metrics"
               >
-                {selectedMetrics.size > 0 ? `Add ${selectedMetrics.size} Metric${selectedMetrics.size !== 1 ? 's' : ''}` : 'Continue'}
+                {selectedMetrics.size > 0 ? `Confirm ${selectedMetrics.size} Metric${selectedMetrics.size !== 1 ? 's' : ''}` : 'Continue'}
               </Button>
             </div>
           </div>

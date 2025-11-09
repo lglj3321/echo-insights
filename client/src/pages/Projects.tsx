@@ -31,11 +31,10 @@ export default function Projects() {
   const [filterType, setFilterType] = useState<string>("all");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isRecommendedMetricsDialogOpen, setIsRecommendedMetricsDialogOpen] = useState(false);
-  const [isMetricsDialogOpen, setIsMetricsDialogOpen] = useState(false);
   const [isSimilarProjectsDialogOpen, setIsSimilarProjectsDialogOpen] = useState(false);
   const [isCategoryMetricsDialogOpen, setIsCategoryMetricsDialogOpen] = useState(false);
   const [pendingMetrics, setPendingMetrics] = useState<MetricItem[]>([]);
-  const [recommendedMetrics, setRecommendedMetrics] = useState<RecommendedMetric[]>([]);
+  const [pendingCustomMetrics, setPendingCustomMetrics] = useState<{name: string, value: string, source: "user" | "file"}[]>([]);
   const [pendingProjectData, setPendingProjectData] = useState<any>(null);
   const [similarProjects, setSimilarProjects] = useState<any[]>([]);
   const [suggestedCategory, setSuggestedCategory] = useState<string>("Packaging");
@@ -156,47 +155,50 @@ export default function Projects() {
     setPendingProjectData(data);
     setIsCreateDialogOpen(false);
     
-    // Step 1: Show AI-recommended metrics first
-    setTimeout(() => {
-      setIsRecommendedMetricsDialogOpen(true);
-    }, 100);
-  };
-
-  const handleRecommendedMetricsSubmit = async (selectedRecommendedMetrics: RecommendedMetric[]) => {
-    // Close recommended metrics dialog
-    setIsRecommendedMetricsDialogOpen(false);
-    
-    // Store recommended metrics
-    setRecommendedMetrics(selectedRecommendedMetrics);
-    
-    // Step 2: Extract and show user/file metrics if available
-    const userMetrics: MetricItem[] = (pendingProjectData.metrics || []).map((m: any) => ({
+    // Prepare all custom metrics (user-entered + file-extracted)
+    const userMetrics: {name: string, value: string, source: "user" | "file"}[] = (data.metrics || []).map((m: any) => ({
       name: m.name,
       value: m.value,
       source: "user" as const
     }));
 
-    let allMetrics = [...userMetrics];
-
-    if (pendingProjectData.uploadedFile) {
-      const fileMetrics = await extractMetricsFromFile(pendingProjectData.uploadedFile);
-      allMetrics = [...allMetrics, ...fileMetrics];
+    // Extract file metrics if file uploaded
+    let allCustomMetrics = [...userMetrics];
+    if (data.uploadedFile) {
+      const fileMetrics = await extractMetricsFromFile(data.uploadedFile);
+      allCustomMetrics = [...allCustomMetrics, ...fileMetrics.map(m => ({...m, source: "file" as const}))];
     }
     
-    if (allMetrics.length > 0) {
-      setPendingMetrics(allMetrics);
-      setTimeout(() => {
-        setIsMetricsDialogOpen(true);
-      }, 100);
-    } else {
-      // No user/file metrics, proceed directly to similarity
-      const recommendedAsMetrics = selectedRecommendedMetrics.map(m => ({
-        name: m.name,
-        value: m.value,
-        source: "user" as const
-      }));
-      handleMetricsConfirm(recommendedAsMetrics);
-    }
+    setPendingCustomMetrics(allCustomMetrics);
+    
+    // Show unified metrics dialog with both AI and custom metrics
+    setTimeout(() => {
+      setIsRecommendedMetricsDialogOpen(true);
+    }, 100);
+  };
+
+  const handleRecommendedMetricsSubmit = async (selectedAIMetrics: RecommendedMetric[], selectedCustomMetrics: {name: string, value: string, source: "user" | "file"}[]) => {
+    // Close unified metrics dialog
+    setIsRecommendedMetricsDialogOpen(false);
+    
+    // Combine AI metrics and custom metrics into unified list
+    const aiAsMetrics: MetricItem[] = selectedAIMetrics.map(m => ({
+      name: m.name,
+      value: m.value,
+      source: "user" as const
+    }));
+    
+    const customAsMetrics: MetricItem[] = selectedCustomMetrics.map(m => ({
+      name: m.name,
+      value: m.value,
+      source: m.source
+    }));
+    
+    const allSelectedMetrics = [...aiAsMetrics, ...customAsMetrics];
+    
+    // Store metrics and proceed to similarity analysis
+    setPendingMetrics(allSelectedMetrics);
+    handleMetricsConfirm(allSelectedMetrics);
   };
 
   const calculateSimilarity = (newProjectData: any, existingProject: Project, selectedMetrics: MetricItem[]) => {
@@ -250,9 +252,6 @@ export default function Projects() {
   };
 
   const handleMetricsConfirm = (selectedMetrics: MetricItem[]) => {
-    // Close metrics dialog first
-    setIsMetricsDialogOpen(false);
-    
     // Store metrics for later use
     setPendingMetrics(selectedMetrics);
     
@@ -380,28 +379,19 @@ export default function Projects() {
   };
 
   const handleCategoryMetricsSubmit = (category: string) => {
-    // Combine recommended metrics and user/file metrics
-    const recommendedAsMetrics = recommendedMetrics.map(m => ({
-      name: m.name,
-      value: m.value,
-      source: "user" as const
-    }));
-    
-    const allMetrics = [...recommendedAsMetrics, ...pendingMetrics];
-
     console.log('Final project created:', {
       ...pendingProjectData,
       category,
-      metrics: allMetrics
+      metrics: pendingMetrics
     });
 
     toast({
       title: "Project Created Successfully",
-      description: `Your ${category} project has been created with ${allMetrics.length} metrics.`,
+      description: `Your ${category} project has been created with ${pendingMetrics.length} metrics.`,
     });
 
     setPendingMetrics([]);
-    setRecommendedMetrics([]);
+    setPendingCustomMetrics([]);
     setPendingProjectData(null);
     setIsCategoryMetricsDialogOpen(false);
 
@@ -505,14 +495,8 @@ export default function Projects() {
         open={isRecommendedMetricsDialogOpen}
         onOpenChange={setIsRecommendedMetricsDialogOpen}
         projectDescription={pendingProjectData?.description || ""}
+        customMetrics={pendingCustomMetrics}
         onSubmit={handleRecommendedMetricsSubmit}
-      />
-
-      <MetricsSelectionDialog
-        open={isMetricsDialogOpen}
-        onOpenChange={setIsMetricsDialogOpen}
-        metrics={pendingMetrics}
-        onSubmit={handleMetricsConfirm}
       />
 
       <SimilarProjectsDialog
