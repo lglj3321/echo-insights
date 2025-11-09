@@ -240,12 +240,19 @@ export function CreateSurveyDialog({
                     className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover-elevate ${
                       selectedQuestions.has(question) ? 'border-primary bg-primary/5' : ''
                     }`}
-                    onClick={() => toggleQuestion(question)}
+                    onClick={(e) => {
+                      // Only toggle if clicking the div itself, not the checkbox
+                      if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'P') {
+                        toggleQuestion(question);
+                      }
+                    }}
                     data-testid={`question-${idx}`}
                   >
                     <Checkbox
                       checked={selectedQuestions.has(question)}
+                      onCheckedChange={() => toggleQuestion(question)}
                       className="mt-0.5"
+                      data-testid={`checkbox-question-${idx}`}
                     />
                     <p className="flex-1 text-sm">{question}</p>
                   </div>
