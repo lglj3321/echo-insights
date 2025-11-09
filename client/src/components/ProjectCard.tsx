@@ -10,6 +10,7 @@ export interface Project {
   title: string;
   description: string;
   type: string;
+  customCategory?: string | null;
   estimatedCost: number;
   roi: number;
   co2Saved: number;
@@ -40,13 +41,15 @@ const typeColors: Record<string, string> = {
 };
 
 export function ProjectCard({ project }: ProjectCardProps) {
+  const displayCategory = project.customCategory || project.type;
+  
   return (
     <Card data-testid={`card-project-${project.id}`} className="flex flex-col">
       <CardHeader>
         <div className="flex items-start justify-between gap-2 flex-wrap">
           <CardTitle className="text-lg">{project.title}</CardTitle>
           <Badge className={typeColors[project.type] || "bg-muted"} data-testid={`badge-type-${project.id}`}>
-            {project.type}
+            {displayCategory}
           </Badge>
         </div>
         <p className="text-sm text-muted-foreground mt-2">{project.description}</p>

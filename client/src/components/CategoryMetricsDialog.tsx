@@ -41,6 +41,7 @@ const PROJECT_CATEGORIES = [
   "Sourcing",
   "Waste",
   "Water",
+  "Other",
   // "Logistics",
 ];
 

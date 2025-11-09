@@ -380,9 +380,18 @@ export default function Projects() {
       value: string;
       source: "user" | "file";
     }[],
+    customCategoryName?: string,
   ) => {
     // Close unified metrics dialog
     setIsRecommendedMetricsDialogOpen(false);
+
+    // Store custom category name if provided
+    if (customCategoryName) {
+      setPendingProjectData((prev: any) => ({
+        ...prev,
+        customCategory: customCategoryName,
+      }));
+    }
 
     // Combine AI metrics and custom metrics into unified list
     const aiAsMetrics: MetricItem[] = selectedAIMetrics.map((m) => ({
@@ -655,8 +664,8 @@ export default function Projects() {
     // Close similar projects dialog
     setIsSimilarProjectsDialogOpen(false);
 
-    // Categorize and open category metrics dialog
-    const category = categorizeProject(pendingProjectData, pendingMetrics);
+    // Use AI-detected category if available, otherwise fall back to keyword-based categorization
+    const category = detectedCategory || categorizeProject(pendingProjectData, pendingMetrics);
     setSuggestedCategory(category);
 
     setTimeout(() => {
@@ -665,15 +674,18 @@ export default function Projects() {
   };
 
   const handleCategoryMetricsSubmit = (category: string) => {
+    const displayCategory = pendingProjectData?.customCategory || category;
+    
     console.log("Final project created:", {
       ...pendingProjectData,
-      category,
+      type: category,
+      customCategory: pendingProjectData?.customCategory,
       metrics: pendingMetrics,
     });
 
     toast({
       title: "Project Created Successfully",
-      description: `Your ${category} project has been created with ${pendingMetrics.length} metrics.`,
+      description: `Your ${displayCategory} project has been created with ${pendingMetrics.length} metrics.`,
     });
 
     setPendingMetrics([]);
