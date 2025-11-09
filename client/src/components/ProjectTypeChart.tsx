@@ -53,39 +53,30 @@ export function ProjectTypeChart({ data }: ProjectTypeChartProps) {
         <p className="text-sm text-muted-foreground">Distribution across categories</p>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col md:flex-row items-center gap-6">
-          <div className="w-48 h-48">
-            <svg viewBox="0 0 100 100" className="w-full h-full">
-              {segments.map((segment, idx) => (
-                <path
-                  key={idx}
-                  d={createArc(segment.startAngle, segment.endAngle)}
-                  className={`${typeColors[segment.type] || "fill-muted"} hover-elevate cursor-pointer`}
-                  opacity="0.9"
-                  data-testid={`segment-${segment.type.toLowerCase()}`}
-                >
-                  <title>{segment.type}: {segment.percentage.toFixed(1)}%</title>
-                </path>
-              ))}
-              <circle cx="50" cy="50" r="20" className="fill-background" />
-            </svg>
-          </div>
-          <div className="flex-1 space-y-2">
-            {segments.map((segment) => (
-              <div key={segment.type} className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-sm ${typeColors[segment.type] || "fill-muted"}`} />
-                  <span className="text-sm">{segment.type}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-mono font-semibold">{segment.count}</span>
-                  <span className="text-xs text-muted-foreground">
-                    ({segment.percentage.toFixed(0)}%)
-                  </span>
-                </div>
-              </div>
+        <div className="w-full aspect-square">
+          <svg viewBox="0 0 100 100" className="w-full h-full">
+            {segments.map((segment, idx) => (
+              <path
+                key={idx}
+                d={createArc(segment.startAngle, segment.endAngle)}
+                className={`${typeColors[segment.type] || "fill-muted"} hover-elevate cursor-pointer`}
+                opacity="0.9"
+                data-testid={`segment-${segment.type.toLowerCase()}`}
+              >
+                <title>{segment.type}: {segment.percentage.toFixed(1)}%</title>
+              </path>
             ))}
-          </div>
+            <circle cx="50" cy="50" r="20" className="fill-background" />
+          </svg>
+        </div>
+        <div className="grid grid-cols-2 gap-2 mt-4">
+          {segments.map((segment) => (
+            <div key={segment.type} className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded-sm ${typeColors[segment.type] || "fill-muted"}`} />
+              <span className="text-xs text-muted-foreground">{segment.type}</span>
+              <span className="text-xs font-mono font-semibold ml-auto">{segment.count}</span>
+            </div>
+          ))}
         </div>
       </CardContent>
     </Card>

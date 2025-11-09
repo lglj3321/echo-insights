@@ -30,9 +30,9 @@ export function FeedbackTrendChart({ data, projectTitle }: FeedbackTrendChartPro
     <Card>
       <CardHeader>
         <CardTitle>Feedback Trend</CardTitle>
-        {projectTitle && (
-          <p className="text-sm text-muted-foreground">{projectTitle}</p>
-        )}
+        <p className="text-sm text-muted-foreground">
+          {projectTitle || "Consumer sentiment over time"}
+        </p>
       </CardHeader>
       <CardContent>
         <div className="w-full aspect-square">
