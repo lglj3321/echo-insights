@@ -26,11 +26,11 @@ interface ClassificationResult {
 
 export async function classifyProject(
   description: string,
-  customMetrics: { name: string; value: string }[],
+  customMetrics: { metricName: string; value: string }[],
   fileText?: string
 ): Promise<ClassificationResult> {
   const metricsText = customMetrics.length > 0
-    ? customMetrics.map(m => `${m.name}: ${m.value}`).join(", ")
+    ? customMetrics.map(m => `${m.metricName}: ${m.value}`).join(", ")
     : "No custom metrics provided";
 
   const fileContext = fileText 

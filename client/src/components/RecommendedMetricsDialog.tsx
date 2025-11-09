@@ -24,14 +24,14 @@ import {
 } from "@/components/ui/select";
 
 export interface RecommendedMetric {
-  name: string;
+  metricName: string;
   value: string;
   category: string;
   reason?: string;
 }
 
 export interface CustomMetric {
-  name: string;
+  metricName: string;
   value: string;
   source: "user" | "file";
 }
@@ -49,34 +49,34 @@ interface RecommendedMetricsDialogProps {
 
 const RECOMMENDED_METRICS_BY_CATEGORY: Record<string, RecommendedMetric[]> = {
   Packaging: [
-    { name: "Recycled Material Usage", value: "% of total packaging", category: "Packaging", reason: "Track sustainable material adoption" },
-    { name: "Packaging Weight Reduction", value: "grams per unit", category: "Packaging", reason: "Measure material efficiency" },
-    { name: "Plastic Elimination", value: "kg/year", category: "Packaging", reason: "Monitor plastic reduction progress" },
+    { metricName: "Recycled Material Usage", value: "% of total packaging", category: "Packaging", reason: "Track sustainable material adoption" },
+    { metricName: "Packaging Weight Reduction", value: "grams per unit", category: "Packaging", reason: "Measure material efficiency" },
+    { metricName: "Plastic Elimination", value: "kg/year", category: "Packaging", reason: "Monitor plastic reduction progress" },
   ],
   Energy: [
-    { name: "Energy Consumption Reduction", value: "kWh/month", category: "Energy", reason: "Track energy efficiency gains" },
-    { name: "Renewable Energy Usage", value: "% of total energy", category: "Energy", reason: "Measure clean energy transition" },
-    { name: "Carbon Intensity", value: "kg CO₂/kWh", category: "Energy", reason: "Monitor carbon footprint" },
+    { metricName: "Energy Consumption Reduction", value: "kWh/month", category: "Energy", reason: "Track energy efficiency gains" },
+    { metricName: "Renewable Energy Usage", value: "% of total energy", category: "Energy", reason: "Measure clean energy transition" },
+    { metricName: "Carbon Intensity", value: "kg CO₂/kWh", category: "Energy", reason: "Monitor carbon footprint" },
   ],
   Sourcing: [
-    { name: "Local Supplier Percentage", value: "% of suppliers", category: "Sourcing", reason: "Track local sourcing adoption" },
-    { name: "Sustainable Certification Rate", value: "% of products", category: "Sourcing", reason: "Measure certification compliance" },
-    { name: "Transport Distance Reduction", value: "miles/shipment", category: "Sourcing", reason: "Monitor logistics efficiency" },
+    { metricName: "Local Supplier Percentage", value: "% of suppliers", category: "Sourcing", reason: "Track local sourcing adoption" },
+    { metricName: "Sustainable Certification Rate", value: "% of products", category: "Sourcing", reason: "Measure certification compliance" },
+    { metricName: "Transport Distance Reduction", value: "miles/shipment", category: "Sourcing", reason: "Monitor logistics efficiency" },
   ],
   Waste: [
-    { name: "Waste Diversion Rate", value: "% diverted from landfill", category: "Waste", reason: "Track landfill reduction" },
-    { name: "Recycling Rate", value: "% of total waste", category: "Waste", reason: "Measure recycling effectiveness" },
-    { name: "Composting Volume", value: "tons/year", category: "Waste", reason: "Monitor organic waste management" },
+    { metricName: "Waste Diversion Rate", value: "% diverted from landfill", category: "Waste", reason: "Track landfill reduction" },
+    { metricName: "Recycling Rate", value: "% of total waste", category: "Waste", reason: "Measure recycling effectiveness" },
+    { metricName: "Composting Volume", value: "tons/year", category: "Waste", reason: "Monitor organic waste management" },
   ],
   Water: [
-    { name: "Water Consumption Reduction", value: "gallons/day", category: "Water", reason: "Track water efficiency" },
-    { name: "Water Recycling Rate", value: "% of water reused", category: "Water", reason: "Measure water conservation" },
-    { name: "Wastewater Treatment", value: "% treated", category: "Water", reason: "Monitor treatment effectiveness" },
+    { metricName: "Water Consumption Reduction", value: "gallons/day", category: "Water", reason: "Track water efficiency" },
+    { metricName: "Water Recycling Rate", value: "% of water reused", category: "Water", reason: "Measure water conservation" },
+    { metricName: "Wastewater Treatment", value: "% treated", category: "Water", reason: "Monitor treatment effectiveness" },
   ],
   Logistics: [
-    { name: "Fleet Fuel Efficiency", value: "mpg average", category: "Logistics", reason: "Track fuel consumption" },
-    { name: "Electric Vehicle Percentage", value: "% of fleet", category: "Logistics", reason: "Measure EV adoption" },
-    { name: "Last-Mile Emissions", value: "kg CO₂/delivery", category: "Logistics", reason: "Monitor delivery impact" },
+    { metricName: "Fleet Fuel Efficiency", value: "mpg average", category: "Logistics", reason: "Track fuel consumption" },
+    { metricName: "Electric Vehicle Percentage", value: "% of fleet", category: "Logistics", reason: "Measure EV adoption" },
+    { metricName: "Last-Mile Emissions", value: "kg CO₂/delivery", category: "Logistics", reason: "Monitor delivery impact" },
   ],
 };
 
@@ -293,7 +293,7 @@ export function RecommendedMetricsDialog({
                         data-testid={`checkbox-ai-${index}`}
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium">{metric.name}</p>
+                        <p className="font-medium">{metric.metricName}</p>
                         <p className="text-sm text-muted-foreground">Unit: {metric.value}</p>
                         {metric.reason && (
                           <p className="text-xs text-muted-foreground mt-1">{metric.reason}</p>
@@ -333,7 +333,7 @@ export function RecommendedMetricsDialog({
                           data-testid={`checkbox-custom-${index}`}
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium">{metric.name}</p>
+                          <p className="font-medium">{metric.metricName}</p>
                           <p className="text-sm text-muted-foreground">{metric.value}</p>
                         </div>
                       </div>
@@ -371,7 +371,7 @@ export function RecommendedMetricsDialog({
                           data-testid={`checkbox-custom-${index}`}
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium">{metric.name}</p>
+                          <p className="font-medium">{metric.metricName}</p>
                           <p className="text-sm text-muted-foreground">{metric.value}</p>
                         </div>
                       </div>

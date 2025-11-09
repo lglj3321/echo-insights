@@ -14,6 +14,7 @@ import {
 import {
   RecommendedMetricsDialog,
   RecommendedMetric,
+  CustomMetric,
 } from "@/components/RecommendedMetricsDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,9 +51,7 @@ export default function Projects() {
   const [isCategoryMetricsDialogOpen, setIsCategoryMetricsDialogOpen] =
     useState(false);
   const [pendingMetrics, setPendingMetrics] = useState<MetricItem[]>([]);
-  const [pendingCustomMetrics, setPendingCustomMetrics] = useState<
-    { name: string; value: string; source: "user" | "file" }[]
-  >([]);
+  const [pendingCustomMetrics, setPendingCustomMetrics] = useState<CustomMetric[]>([]);
   const [pendingProjectData, setPendingProjectData] = useState<any>(null);
   const [similarProjects, setSimilarProjects] = useState<any[]>([]);
   const [suggestedCategory, setSuggestedCategory] =
@@ -70,7 +69,6 @@ export default function Projects() {
       type: "Packaging",
       estimatedCost: 45000,
       roi: 18,
-      co2Saved: 2.5,
       waterSaved: 500,
       feedbackScore: 4.6,
       responseCount: 234,
@@ -83,7 +81,6 @@ export default function Projects() {
       type: "Energy",
       estimatedCost: 120000,
       roi: 25,
-      co2Saved: 8.2,
       feedbackScore: 4.1,
       responseCount: 156,
       impactScore: 91,
@@ -95,7 +92,6 @@ export default function Projects() {
       type: "Sourcing",
       estimatedCost: 28000,
       roi: 12,
-      co2Saved: 1.8,
       feedbackScore: 4.8,
       responseCount: 312,
       impactScore: 76,
@@ -107,7 +103,6 @@ export default function Projects() {
       type: "Water",
       estimatedCost: 75000,
       roi: 20,
-      co2Saved: 3.5,
       feedbackScore: 4.3,
       responseCount: 189,
       impactScore: 85,
@@ -119,7 +114,6 @@ export default function Projects() {
       type: "Waste",
       estimatedCost: 35000,
       roi: 15,
-      co2Saved: 2.1,
       feedbackScore: 4.4,
       responseCount: 201,
       impactScore: 78,
@@ -131,7 +125,6 @@ export default function Projects() {
       type: "Logistics",
       estimatedCost: 95000,
       roi: 22,
-      co2Saved: 5.8,
       feedbackScore: 4.2,
       responseCount: 167,
       impactScore: 88,
@@ -201,7 +194,7 @@ export default function Projects() {
                 
                 if (valueStr.trim()) {
                   extractedMetrics.push({
-                    name: String(metricName),
+                    metricName: String(metricName),
                     value: valueStr,
                     source: "file",
                   });
@@ -237,7 +230,7 @@ export default function Projects() {
               if (Array.isArray(metrics)) {
                 metrics.forEach((metric: { name: string; value: string }) => {
                   extractedMetrics.push({
-                    name: metric.name,
+                    metricName: metric.name,
                     value: metric.value,
                     source: "file",
                   });
@@ -275,12 +268,8 @@ export default function Projects() {
       setIsClassifying(true);
 
       // Prepare all custom metrics (user-entered + file-extracted)
-      const userMetrics: {
-        name: string;
-        value: string;
-        source: "user" | "file";
-      }[] = (data.metrics || []).map((m: any) => ({
-        name: m.name,
+      const userMetrics: CustomMetric[] = (data.metrics || []).map((m: any) => ({
+        metricName: m.metricName,
         value: m.value,
         source: "user" as const,
       }));
@@ -378,11 +367,7 @@ export default function Projects() {
 
   const handleRecommendedMetricsSubmit = async (
     selectedAIMetrics: RecommendedMetric[],
-    selectedCustomMetrics: {
-      name: string;
-      value: string;
-      source: "user" | "file";
-    }[],
+    selectedCustomMetrics: CustomMetric[],
     customCategoryName?: string,
   ) => {
     // Close unified metrics dialog
@@ -398,13 +383,13 @@ export default function Projects() {
 
     // Combine AI metrics and custom metrics into unified list
     const aiAsMetrics: MetricItem[] = selectedAIMetrics.map((m) => ({
-      name: m.name,
+      metricName: m.metricName,
       value: m.value,
       source: "user" as const,
     }));
 
     const customAsMetrics: MetricItem[] = selectedCustomMetrics.map((m) => ({
-      name: m.name,
+      metricName: m.metricName,
       value: m.value,
       source: m.source,
     }));
@@ -440,7 +425,7 @@ export default function Projects() {
       );
     }
 
-    const metricNames = selectedMetrics.map((m) => m.name.toLowerCase());
+    const metricNames = selectedMetrics.map((m) => m.metricName.toLowerCase());
     const hasCarbon = metricNames.some(
       (n) => n.includes("co") || n.includes("carbon") || n.includes("emission"),
     );
@@ -448,7 +433,7 @@ export default function Projects() {
     const hasEnergy = metricNames.some((n) => n.includes("energy"));
 
     let metricOverlap = 0;
-    if (hasCarbon && existingProject.co2Saved) {
+    if (hasCarbon) {
       metricOverlap += 33;
       matchReasons.push("Both track carbon emissions");
     }
@@ -517,7 +502,7 @@ export default function Projects() {
 
   const finalizeProject = (selectedMetrics?: MetricItem[]) => {
     const metrics =
-      selectedMetrics || pendingMetrics.filter((m) => m.name && m.value);
+      selectedMetrics || pendingMetrics.filter((m) => m.metricName && m.value);
     console.log("Final project created with metrics:", metrics);
     toast({
       title: "Project Created",
@@ -570,7 +555,7 @@ export default function Projects() {
   ): string => {
     const description = projectData.description.toLowerCase();
     const metricNames = selectedMetrics
-      .map((m) => m.name.toLowerCase())
+      .map((m) => m.metricName.toLowerCase())
       .join(" ");
     const allText = `${description} ${metricNames}`;
 
@@ -696,7 +681,6 @@ export default function Projects() {
         customCategory: pendingProjectData?.customCategory,
         estimatedCost: String(pendingProjectData?.estimatedCost || 0),
         roi: String(pendingProjectData?.roi || 0),
-        co2Saved: String(pendingProjectData?.co2Saved || 0),
       };
       
       console.log("Creating project:", projectPayload);

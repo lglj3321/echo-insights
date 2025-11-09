@@ -24,7 +24,7 @@ import { Upload, FileText, Plus, X } from "lucide-react";
 import { useState, useEffect } from "react";
 
 interface Metric {
-  name: string;
+  metricName: string;
   value: string;
 }
 
@@ -45,7 +45,7 @@ interface ProjectFormProps {
 export function ProjectForm({ onSubmit, initialData }: ProjectFormProps) {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [metrics, setMetrics] = useState<Metric[]>([
-    { name: "", value: "" }
+    { metricName: "", value: "" }
   ]);
   
   const form = useForm<ProjectFormData>({
@@ -72,14 +72,14 @@ export function ProjectForm({ onSubmit, initialData }: ProjectFormProps) {
   };
 
   const addMetric = () => {
-    setMetrics([...metrics, { name: "", value: "" }]);
+    setMetrics([...metrics, { metricName: "", value: "" }]);
   };
 
   const removeMetric = (index: number) => {
     setMetrics(metrics.filter((_, i) => i !== index));
   };
 
-  const updateMetric = (index: number, field: 'name' | 'value', value: string) => {
+  const updateMetric = (index: number, field: 'metricName' | 'value', value: string) => {
     const updated = [...metrics];
     updated[index][field] = value;
     setMetrics(updated);
@@ -88,7 +88,7 @@ export function ProjectForm({ onSubmit, initialData }: ProjectFormProps) {
   const handleFormSubmit = (data: ProjectFormData) => {
     const formDataWithMetrics = {
       ...data,
-      metrics: metrics.filter(m => m.name && m.value),
+      metrics: metrics.filter(m => m.metricName && m.value),
       uploadedFile: uploadedFile
     };
     onSubmit(formDataWithMetrics as any);
@@ -208,8 +208,8 @@ export function ProjectForm({ onSubmit, initialData }: ProjectFormProps) {
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
                       <Input
                         placeholder="Metric name (e.g., CO₂ Saved)"
-                        value={metric.name}
-                        onChange={(e) => updateMetric(index, 'name', e.target.value)}
+                        value={metric.metricName}
+                        onChange={(e) => updateMetric(index, 'metricName', e.target.value)}
                         data-testid={`input-metric-name-${index}`}
                       />
                       <Input

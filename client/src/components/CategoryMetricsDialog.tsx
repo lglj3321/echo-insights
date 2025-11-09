@@ -23,7 +23,7 @@ import { Separator } from "@/components/ui/separator";
 import { Sparkles, Tag, TrendingUp } from "lucide-react";
 
 export interface RecommendedMetric {
-  name: string;
+  metricName: string;
   value: string;
   category: string;
 }
@@ -47,46 +47,46 @@ const PROJECT_CATEGORIES = [
 
 const RECOMMENDED_METRICS_BY_CATEGORY: Record<string, RecommendedMetric[]> = {
   Packaging: [
-    { name: "Recycled Material Usage", value: "% of total packaging", category: "Packaging" },
-    { name: "Packaging Weight Reduction", value: "grams per unit", category: "Packaging" },
-    { name: "Biodegradable Materials", value: "% of packaging", category: "Packaging" },
-    { name: "Plastic Elimination", value: "kg/year", category: "Packaging" },
-    { name: "Packaging Recyclability Rate", value: "%", category: "Packaging" },
+    { metricName: "Recycled Material Usage", value: "% of total packaging", category: "Packaging" },
+    { metricName: "Packaging Weight Reduction", value: "grams per unit", category: "Packaging" },
+    { metricName: "Biodegradable Materials", value: "% of packaging", category: "Packaging" },
+    { metricName: "Plastic Elimination", value: "kg/year", category: "Packaging" },
+    { metricName: "Packaging Recyclability Rate", value: "%", category: "Packaging" },
   ],
   Energy: [
-    { name: "Energy Consumption Reduction", value: "kWh/month", category: "Energy" },
-    { name: "Renewable Energy Usage", value: "% of total energy", category: "Energy" },
-    { name: "Solar Capacity", value: "kW installed", category: "Energy" },
-    { name: "Energy Cost Savings", value: "$/year", category: "Energy" },
-    { name: "Carbon Intensity", value: "kg CO₂/kWh", category: "Energy" },
+    { metricName: "Energy Consumption Reduction", value: "kWh/month", category: "Energy" },
+    { metricName: "Renewable Energy Usage", value: "% of total energy", category: "Energy" },
+    { metricName: "Solar Capacity", value: "kW installed", category: "Energy" },
+    { metricName: "Energy Cost Savings", value: "$/year", category: "Energy" },
+    { metricName: "Carbon Intensity", value: "kg CO₂/kWh", category: "Energy" },
   ],
   Sourcing: [
-    { name: "Local Supplier Percentage", value: "% of suppliers", category: "Sourcing" },
-    { name: "Sustainable Certification Rate", value: "% of products", category: "Sourcing" },
-    { name: "Supply Chain Emissions", value: "tons CO₂/year", category: "Sourcing" },
-    { name: "Fair Trade Products", value: "% of inventory", category: "Sourcing" },
-    { name: "Transport Distance Reduction", value: "miles/shipment", category: "Sourcing" },
+    { metricName: "Local Supplier Percentage", value: "% of suppliers", category: "Sourcing" },
+    { metricName: "Sustainable Certification Rate", value: "% of products", category: "Sourcing" },
+    { metricName: "Supply Chain Emissions", value: "tons CO₂/year", category: "Sourcing" },
+    { metricName: "Fair Trade Products", value: "% of inventory", category: "Sourcing" },
+    { metricName: "Transport Distance Reduction", value: "miles/shipment", category: "Sourcing" },
   ],
   Waste: [
-    { name: "Waste Diversion Rate", value: "% diverted from landfill", category: "Waste" },
-    { name: "Composting Volume", value: "tons/year", category: "Waste" },
-    { name: "Recycling Rate", value: "% of total waste", category: "Waste" },
-    { name: "Hazardous Waste Reduction", value: "kg/year", category: "Waste" },
-    { name: "Zero Waste Achievement", value: "% toward goal", category: "Waste" },
+    { metricName: "Waste Diversion Rate", value: "% diverted from landfill", category: "Waste" },
+    { metricName: "Composting Volume", value: "tons/year", category: "Waste" },
+    { metricName: "Recycling Rate", value: "% of total waste", category: "Waste" },
+    { metricName: "Hazardous Waste Reduction", value: "kg/year", category: "Waste" },
+    { metricName: "Zero Waste Achievement", value: "% toward goal", category: "Waste" },
   ],
   Water: [
-    { name: "Water Consumption Reduction", value: "gallons/day", category: "Water" },
-    { name: "Water Recycling Rate", value: "% of water reused", category: "Water" },
-    { name: "Rainwater Harvesting", value: "gallons/year", category: "Water" },
-    { name: "Wastewater Treatment", value: "% treated", category: "Water" },
-    { name: "Water Efficiency Score", value: "gallons per unit produced", category: "Water" },
+    { metricName: "Water Consumption Reduction", value: "gallons/day", category: "Water" },
+    { metricName: "Water Recycling Rate", value: "% of water reused", category: "Water" },
+    { metricName: "Rainwater Harvesting", value: "gallons/year", category: "Water" },
+    { metricName: "Wastewater Treatment", value: "% treated", category: "Water" },
+    { metricName: "Water Efficiency Score", value: "gallons per unit produced", category: "Water" },
   ],
   Logistics: [
-    { name: "Fleet Fuel Efficiency", value: "mpg average", category: "Logistics" },
-    { name: "Electric Vehicle Percentage", value: "% of fleet", category: "Logistics" },
-    { name: "Delivery Route Optimization", value: "% reduction in miles", category: "Logistics" },
-    { name: "Last-Mile Emissions", value: "kg CO₂/delivery", category: "Logistics" },
-    { name: "Packaging Fill Rate", value: "% of vehicle capacity", category: "Logistics" },
+    { metricName: "Fleet Fuel Efficiency", value: "mpg average", category: "Logistics" },
+    { metricName: "Electric Vehicle Percentage", value: "% of fleet", category: "Logistics" },
+    { metricName: "Delivery Route Optimization", value: "% reduction in miles", category: "Logistics" },
+    { metricName: "Last-Mile Emissions", value: "kg CO₂/delivery", category: "Logistics" },
+    { metricName: "Packaging Fill Rate", value: "% of vehicle capacity", category: "Logistics" },
   ],
 };
 

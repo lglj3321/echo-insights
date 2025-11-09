@@ -194,7 +194,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Extract metrics from first column (excluding header row)
-      const metrics: Array<{ name: string; value: string }> = [];
+      const metrics: Array<{ metricName: string; value: string }> = [];
       const rows = data.slice(1); // Skip header row
       
       rows.forEach((row: any) => {
@@ -216,7 +216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (valueStr.trim()) {
           metrics.push({
-            name: String(metricName),
+            metricName: String(metricName),
             value: valueStr
           });
         }
@@ -227,7 +227,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (metrics.length > 0) {
         text += `Metrics:\n`;
         metrics.forEach(m => {
-          text += `- ${m.name}: ${m.value}\n`;
+          text += `- ${m.metricName}: ${m.value}\n`;
         });
       } else {
         text += `No metrics found.`;

@@ -32,7 +32,7 @@ export const projects = pgTable("projects", {
   estimatedCost: decimal("estimated_cost", { precision: 12, scale: 2 }).notNull(),
   actualCost: decimal("actual_cost", { precision: 12, scale: 2 }),
   roi: decimal("roi", { precision: 5, scale: 2 }).notNull(),
-  co2Saved: decimal("co2_saved", { precision: 10, scale: 2 }).notNull(),
+  co2Saved: decimal("co2_saved", { precision: 10, scale: 2 }),
   waterSaved: decimal("water_saved", { precision: 10, scale: 2 }),
   status: text("status").default("active"),
   assignedTo: varchar("assigned_to").references(() => users.id),

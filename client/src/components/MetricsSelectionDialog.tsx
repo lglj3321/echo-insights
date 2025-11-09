@@ -14,7 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { FileText, User, CheckCircle2 } from "lucide-react";
 
 export interface MetricItem {
-  name: string;
+  metricName: string;
   value: string;
   source: "user" | "file";
 }
@@ -94,7 +94,7 @@ export function MetricsSelectionDialog({
                         data-testid={`checkbox-metric-${index}`}
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium">{metric.name}</p>
+                        <p className="font-medium">{metric.metricName}</p>
                         <p className="text-sm text-muted-foreground">{metric.value}</p>
                       </div>
                     </div>
@@ -130,7 +130,7 @@ export function MetricsSelectionDialog({
                         data-testid={`checkbox-metric-${index}`}
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium">{metric.name}</p>
+                        <p className="font-medium">{metric.metricName}</p>
                         <p className="text-sm text-muted-foreground">{metric.value}</p>
                       </div>
                     </div>
