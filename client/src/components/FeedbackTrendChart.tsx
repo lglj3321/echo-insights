@@ -35,7 +35,7 @@ export function FeedbackTrendChart({ data, projectTitle }: FeedbackTrendChartPro
         )}
       </CardHeader>
       <CardContent>
-        <div className="w-full aspect-[2/1]">
+        <div className="w-full aspect-square">
           <svg viewBox="0 0 100 100" className="w-full h-full">
             <defs>
               <linearGradient id="feedbackGradient" x1="0" x2="0" y1="0" y2="1">
@@ -63,7 +63,7 @@ export function FeedbackTrendChart({ data, projectTitle }: FeedbackTrendChartPro
                     y={y}
                     textAnchor="end"
                     dominantBaseline="middle"
-                    className="text-[3px] fill-muted-foreground"
+                    className="text-[3.5px] fill-muted-foreground"
                   >
                     {score}
                   </text>
@@ -101,7 +101,7 @@ export function FeedbackTrendChart({ data, projectTitle }: FeedbackTrendChartPro
                 x={point.x}
                 y={100 - padding + 4}
                 textAnchor="middle"
-                className="text-[2.5px] fill-muted-foreground"
+                className="text-[3.5px] fill-muted-foreground"
               >
                 {point.date}
               </text>
