@@ -31,19 +31,19 @@ export function ImpactCostMatrix({ projects }: ImpactCostMatrixProps) {
       </CardHeader>
       <CardContent>
         <div className="relative w-full aspect-square">
-          <svg viewBox="0 0 100 100" className="w-full h-full">
+          <svg viewBox="-5 -5 110 110" className="w-full h-full">
             <line x1="5" y1="5" x2="5" y2="90" stroke="currentColor" strokeWidth="0.5" className="text-border" />
             <line x1="5" y1="90" x2="90" y2="90" stroke="currentColor" strokeWidth="0.5" className="text-border" />
             
             <line x1="50" y1="5" x2="50" y2="90" stroke="currentColor" strokeWidth="0.3" strokeDasharray="2,2" className="text-border" />
             <line x1="5" y1="47.5" x2="90" y2="47.5" stroke="currentColor" strokeWidth="0.3" strokeDasharray="2,2" className="text-border" />
             
-            <text x="50" y="97" textAnchor="middle" className="text-[3px] fill-muted-foreground">Cost →</text>
-            <text x="1" y="50" textAnchor="middle" className="text-[3px] fill-muted-foreground" transform="rotate(-90, 1, 50)">Impact →</text>
+            <text x="50" y="98" textAnchor="middle" className="text-[3.5px] fill-muted-foreground">Cost →</text>
+            <text x="-2" y="50" textAnchor="middle" className="text-[3.5px] fill-muted-foreground" transform="rotate(-90, -2, 50)">Impact →</text>
             
             <rect x="5" y="5" width="42.5" height="42.5" fill="hsl(var(--primary))" opacity="0.05" />
-            <text x="26" y="30" textAnchor="middle" className="text-[2.5px] fill-muted-foreground">High Impact</text>
-            <text x="26" y="34" textAnchor="middle" className="text-[2.5px] fill-muted-foreground">Low Cost</text>
+            <text x="26" y="30" textAnchor="middle" className="text-[3px] fill-muted-foreground">High Impact</text>
+            <text x="26" y="34" textAnchor="middle" className="text-[3px] fill-muted-foreground">Low Cost</text>
             
             {projects.map((project) => {
               const pos = getPosition(project);
