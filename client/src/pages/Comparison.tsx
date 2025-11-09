@@ -78,6 +78,32 @@ export default function Comparison() {
         { name: "Plastic Elimination", value: "2,800 kg/year", normalizedScore: 95 },
       ],
     },
+    {
+      id: "5",
+      title: "Zero Waste Initiative",
+      category: "Waste",
+      impactScore: 78,
+      metrics: [
+        { name: "Waste Diversion Rate", value: "85%", normalizedScore: 85 },
+        { name: "Recycling Rate", value: "72%", normalizedScore: 72 },
+        { name: "CO₂ Emissions Reduced", value: "2.1 Tons/Quarter", normalizedScore: 70 },
+        { name: "Cost Savings", value: "$15,000/year", normalizedScore: 60 },
+        { name: "Composting Volume", value: "3.2 tons/year", normalizedScore: 65 },
+      ],
+    },
+    {
+      id: "6",
+      title: "Electric Fleet Transition",
+      category: "Logistics",
+      impactScore: 88,
+      metrics: [
+        { name: "CO₂ Emissions Reduced", value: "5.8 Tons/Quarter", normalizedScore: 95 },
+        { name: "Fuel Savings", value: "4,200 gallons/year", normalizedScore: 88 },
+        { name: "Electric Vehicle Adoption", value: "75%", normalizedScore: 85 },
+        { name: "Cost Savings", value: "$19,500/year", normalizedScore: 78 },
+        { name: "Maintenance Reduction", value: "35%", normalizedScore: 82 },
+      ],
+    },
   ];
 
   const toggleProject = (projectId: string) => {
