@@ -154,11 +154,17 @@ Preferred communication style: Simple, everyday language.
 - **Project Details Bug Fix**: Fixed issue where clicking "View Details" on any project always displayed "100% Recycled Packaging Initiative". Now correctly displays the selected project's details by looking up project data based on the URL ID parameter.
 - **Teams Page Edit Dropdown**: Implemented functional Edit button in Team Members Actions column with dropdown menu for role management (Admin, Manager, Viewer) and member removal. Role changes and deletions update the UI reactively with state management and show toast confirmations.
 - **Settings Page Cleanup**: Removed "Survey Settings" section with Base Survey URL field from Company tab in Settings page, as the feature was not needed.
-- **AI-Powered Project Classification**: Implemented smart backend classification system that analyzes project description, custom metrics, and uploaded CSV file data when "Create Project" button is clicked
-  - **Backend Endpoint**: Created `/api/classify-project` endpoint that uses enhanced keyword-based analysis (prepares for OpenAI integration)
-  - **Real CSV Parsing**: Replaced mock file extraction with actual PapaParse implementation that reads CSV column headers and values as metrics
-  - **Loading State**: Added "Analyzing Project" loading dialog with spinner while classification API processes the data
-  - **API-Detected Categories**: Metrics dialog now receives and displays the backend-detected category with confidence score
-  - **"Other" Category Option**: Added "Other" to category dropdown for projects that don't fit standard categories (shows no AI-recommended metrics)
-  - **Go Back Button**: Added "Go Back" button to metrics dialog allowing users to return to project form without losing work
-  - **Fallback Logic**: System gracefully handles classification errors with toast notifications and defaults to "Packaging" category
+- **AI-Powered Project Classification with OpenAI**: Fully integrated OpenAI GPT-5 for intelligent project categorization analyzing description, custom metrics, and file content
+  - **OpenAI Integration**: Set up Replit AI Integrations service providing OpenAI-compatible API access without requiring personal API keys (charges billed to Replit credits)
+  - **Backend Classification Service**: Created `server/openai-service.ts` with GPT-5 integration including retry logic, rate limiting, and error handling using p-retry
+  - **Smart Prompting**: Designed comprehensive prompt that analyzes project description, custom metrics, and file content to classify into 6 categories (Packaging, Energy, Sourcing, Waste, Water, Other) with confidence scores and reasoning
+  - **PDF Support**: Implemented full PDF text extraction using pdf-parse library
+    - Frontend reads PDFs as base64 and sends to `/api/parse-pdf` endpoint
+    - Backend extracts full text from PDF files
+    - Extracted text included in OpenAI classification analysis
+  - **CSV Parsing**: Real PapaParse implementation extracts column headers and values as metrics
+  - **Loading State**: "Analyzing Project" dialog with spinner during AI classification
+  - **API-Detected Categories**: Metrics dialog displays AI-detected category with confidence score and reasoning
+  - **"Other" Category Option**: Added for projects that don't fit standard categories
+  - **Go Back Button**: Allows users to return to project form without losing work
+  - **Robust Fallback**: Keyword-based classification fallback if OpenAI fails, with graceful error handling and user notifications
