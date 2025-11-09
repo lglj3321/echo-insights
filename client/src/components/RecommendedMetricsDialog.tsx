@@ -113,7 +113,7 @@ const categorizeFromDescription = (description: string): string => {
   return "Packaging";
 };
 
-const CATEGORY_OPTIONS = ["Packaging", "Energy", "Sourcing", "Waste", "Water"];
+const CATEGORY_OPTIONS = ["Packaging", "Energy", "Sourcing", "Waste", "Water", "Other"];
 
 export function RecommendedMetricsDialog({
   open,
@@ -128,7 +128,8 @@ export function RecommendedMetricsDialog({
   const [selectedCategory, setSelectedCategory] = useState<string>(detectedCategory);
   const [isManuallySelected, setIsManuallySelected] = useState(false);
   
-  const recommendedMetrics = RECOMMENDED_METRICS_BY_CATEGORY[selectedCategory] || [];
+  // Show no AI metrics for "Other" category
+  const recommendedMetrics = selectedCategory === "Other" ? [] : (RECOMMENDED_METRICS_BY_CATEGORY[selectedCategory] || []);
   
   // Use combined selection state with keys like "ai-0", "custom-0", etc.
   const [selectedMetrics, setSelectedMetrics] = useState<Set<string>>(new Set());
@@ -358,23 +359,32 @@ export function RecommendedMetricsDialog({
 
         <DialogFooter>
           <div className="flex items-center justify-between w-full gap-2 flex-wrap">
-            <p className="text-sm text-muted-foreground">
-              {selectedMetrics.size} metric{selectedMetrics.size !== 1 ? 's' : ''} selected
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={handleSkip}
-                data-testid="button-skip-metrics"
-              >
-                Skip for Now
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                data-testid="button-confirm-metrics"
-              >
-                {selectedMetrics.size > 0 ? `Confirm ${selectedMetrics.size} Metric${selectedMetrics.size !== 1 ? 's' : ''}` : 'Continue'}
-              </Button>
+            <Button
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              data-testid="button-go-back"
+            >
+              Go Back
+            </Button>
+            <div className="flex items-center gap-4">
+              <p className="text-sm text-muted-foreground">
+                {selectedMetrics.size} metric{selectedMetrics.size !== 1 ? 's' : ''} selected
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleSkip}
+                  data-testid="button-skip-metrics"
+                >
+                  Skip for Now
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  data-testid="button-confirm-metrics"
+                >
+                  {selectedMetrics.size > 0 ? `Confirm ${selectedMetrics.size} Metric${selectedMetrics.size !== 1 ? 's' : ''}` : 'Continue'}
+                </Button>
+              </div>
             </div>
           </div>
         </DialogFooter>

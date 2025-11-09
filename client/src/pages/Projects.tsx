@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Papa from "papaparse";
 import { ProjectCard, Project } from "@/components/ProjectCard";
 import { ProjectForm } from "@/components/ProjectForm";
 import {
@@ -143,43 +144,59 @@ export default function Projects() {
   // const projectTypes = ["Packaging", "Energy", "Sourcing", "Waste", "Water", "Logistics"];
 
   const extractMetricsFromFile = (file: File): Promise<MetricItem[]> => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const fileName = file.name.toLowerCase();
-        const extractedMetrics: MetricItem[] = [];
+    return new Promise((resolve, reject) => {
+      const fileName = file.name.toLowerCase();
+      const extractedMetrics: MetricItem[] = [];
 
-        if (fileName.endsWith(".csv") || fileName.endsWith(".xlsx")) {
-          extractedMetrics.push(
-            {
-              name: "CO₂ Emissions Reduced",
-              value: "3.2 Tons/Quarter",
-              source: "file",
-            },
-            {
-              name: "Water Conservation",
-              value: "1,250 Gallons/Month",
-              source: "file",
-            },
-            { name: "Energy Savings", value: "450 kWh/Month", source: "file" },
-            { name: "Waste Diverted", value: "85%", source: "file" },
-          );
-        } else if (
-          fileName.endsWith(".pdf") ||
-          fileName.endsWith(".doc") ||
-          fileName.endsWith(".docx")
-        ) {
-          extractedMetrics.push(
-            {
-              name: "Carbon Footprint Reduction",
-              value: "2.8 Tons/Year",
-              source: "file",
-            },
-            { name: "Recycling Rate", value: "92%", source: "file" },
-          );
-        }
-
-        resolve(extractedMetrics);
-      }, 1000);
+      // Parse CSV files using PapaParse
+      if (fileName.endsWith(".csv")) {
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            if (results.data && results.data.length > 0) {
+              const headers = Object.keys(results.data[0] as any);
+              
+              // Extract metrics from CSV columns
+              headers.forEach((header) => {
+                if (!header || header.trim() === "") return;
+                
+                // Get the first non-empty value from this column
+                const firstRow = results.data[0] as any;
+                const value = firstRow[header];
+                
+                // Only add if we have a value
+                if (value !== undefined && value !== null && String(value).trim() !== "") {
+                  extractedMetrics.push({
+                    name: header,
+                    value: String(value),
+                    source: "file",
+                  });
+                }
+              });
+            }
+            resolve(extractedMetrics);
+          },
+          error: (error) => {
+            console.error("CSV parsing error:", error);
+            resolve([]); // Return empty array on error instead of rejecting
+          }
+        });
+      } 
+      // For Excel/PDF/Word files, show a message that parsing isn't yet supported
+      else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
+        // Excel files require a different parser - for now, return empty
+        // TODO: Implement Excel parsing using a library like xlsx
+        resolve([]);
+      }
+      else if (fileName.endsWith(".pdf") || fileName.endsWith(".doc") || fileName.endsWith(".docx")) {
+        // Document files require specialized parsers - for now, return empty
+        // TODO: Implement document parsing
+        resolve([]);
+      }
+      else {
+        resolve([]);
+      }
     });
   };
 
