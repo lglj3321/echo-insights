@@ -111,25 +111,6 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Survey Settings</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="survey-url">Base Survey URL</Label>
-                <Input
-                  id="survey-url"
-                  defaultValue="https://echo-insights.app/survey/"
-                  data-testid="input-survey-url"
-                />
-                <p className="text-xs text-muted-foreground">
-                  This URL will be used as the base for all QR code links
-                </p>
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="profile" className="space-y-4 mt-6">
