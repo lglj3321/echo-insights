@@ -865,6 +865,10 @@ export default function Projects() {
         apiDetectedCategory={detectedCategory}
         classificationConfidence={classificationConfidence}
         onSubmit={handleRecommendedMetricsSubmit}
+        onGoBack={() => {
+          setIsRecommendedMetricsDialogOpen(false);
+          setIsCreateDialogOpen(true);
+        }}
       />
 
       {/* Loading Dialog for Classification */}

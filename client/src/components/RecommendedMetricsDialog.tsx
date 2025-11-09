@@ -43,6 +43,7 @@ interface RecommendedMetricsDialogProps {
   apiDetectedCategory?: string | null;
   classificationConfidence?: number;
   onSubmit: (selectedAIMetrics: RecommendedMetric[], selectedCustomMetrics: CustomMetric[]) => void;
+  onGoBack?: () => void;
 }
 
 const RECOMMENDED_METRICS_BY_CATEGORY: Record<string, RecommendedMetric[]> = {
@@ -125,6 +126,7 @@ export function RecommendedMetricsDialog({
   apiDetectedCategory,
   classificationConfidence = 0,
   onSubmit,
+  onGoBack,
 }: RecommendedMetricsDialogProps) {
   // Use API-detected category if available, otherwise fall back to keyword-based
   const fallbackCategory = categorizeFromDescription(projectDescription);
@@ -367,7 +369,7 @@ export function RecommendedMetricsDialog({
           <div className="flex items-center justify-between w-full gap-2 flex-wrap">
             <Button
               variant="ghost"
-              onClick={() => onOpenChange(false)}
+              onClick={() => onGoBack ? onGoBack() : onOpenChange(false)}
               data-testid="button-go-back"
             >
               Go Back
