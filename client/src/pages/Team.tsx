@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Mail, Users, Shield, Eye } from "lucide-react";
+import { Plus, Mail, Users, Shield, Eye, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +28,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
 
 interface TeamMember {
   id: string;
@@ -41,9 +50,10 @@ interface TeamMember {
 
 export default function Team() {
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+  const { toast } = useToast();
 
   // TODO: Remove mock data - replace with actual API data
-  const mockTeamMembers: TeamMember[] = [
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([
     {
       id: "1",
       email: "sarah.johnson@company.com",
@@ -80,7 +90,7 @@ export default function Team() {
       joinedAt: "2024-10-25",
       initials: "DL",
     },
-  ];
+  ]);
 
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
@@ -102,6 +112,31 @@ export default function Team() {
       default:
         return Eye;
     }
+  };
+
+  const handleRoleChange = (memberId: string, memberName: string, newRole: "admin" | "manager" | "viewer") => {
+    // TODO: Replace with actual API call
+    setTeamMembers(prevMembers =>
+      prevMembers.map(member =>
+        member.id === memberId ? { ...member, role: newRole } : member
+      )
+    );
+    toast({
+      title: "Role Updated",
+      description: `${memberName}'s role has been changed to ${newRole}`,
+    });
+  };
+
+  const handleDeleteMember = (memberId: string, memberName: string) => {
+    // TODO: Replace with actual API call
+    setTeamMembers(prevMembers =>
+      prevMembers.filter(member => member.id !== memberId)
+    );
+    toast({
+      title: "Member Removed",
+      description: `${memberName} has been removed from the team`,
+      variant: "destructive",
+    });
   };
 
   return (
@@ -170,9 +205,9 @@ export default function Team() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold font-mono">{mockTeamMembers.length}</div>
+            <div className="text-3xl font-bold font-mono">{teamMembers.length}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              {mockTeamMembers.filter(m => m.status === "active").length} active
+              {teamMembers.filter(m => m.status === "active").length} active
             </p>
           </CardContent>
         </Card>
@@ -183,7 +218,7 @@ export default function Team() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold font-mono">
-              {mockTeamMembers.filter(m => m.status === "pending").length}
+              {teamMembers.filter(m => m.status === "pending").length}
             </div>
             <p className="text-xs text-muted-foreground mt-1">Awaiting acceptance</p>
           </CardContent>
@@ -195,7 +230,7 @@ export default function Team() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold font-mono">
-              {mockTeamMembers.filter(m => m.role === "admin").length}
+              {teamMembers.filter(m => m.role === "admin").length}
             </div>
             <p className="text-xs text-muted-foreground mt-1">Full access members</p>
           </CardContent>
@@ -219,7 +254,7 @@ export default function Team() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockTeamMembers.map((member) => {
+              {teamMembers.map((member) => {
                 const RoleIcon = getRoleIcon(member.role);
                 return (
                   <TableRow key={member.id} data-testid={`row-member-${member.id}`}>
@@ -247,9 +282,46 @@ export default function Team() {
                       {new Date(member.joinedAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" data-testid={`button-edit-${member.id}`}>
-                        Edit
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm" data-testid={`button-edit-${member.id}`}>
+                            Edit
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Change Role</DropdownMenuLabel>
+                          <DropdownMenuItem
+                            onClick={() => handleRoleChange(member.id, member.fullName, "admin")}
+                            data-testid={`option-role-admin-${member.id}`}
+                          >
+                            <Shield className="h-4 w-4 mr-2" />
+                            Admin
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleRoleChange(member.id, member.fullName, "manager")}
+                            data-testid={`option-role-manager-${member.id}`}
+                          >
+                            <Users className="h-4 w-4 mr-2" />
+                            Manager
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleRoleChange(member.id, member.fullName, "viewer")}
+                            data-testid={`option-role-viewer-${member.id}`}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            Viewer
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => handleDeleteMember(member.id, member.fullName)}
+                            className="text-destructive"
+                            data-testid={`option-delete-${member.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Remove Member
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 );
