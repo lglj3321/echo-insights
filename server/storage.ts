@@ -151,6 +151,7 @@ export class MemStorage implements IStorage {
     const newProject: Project = {
       ...project,
       id,
+      customCategory: project.customCategory ?? null,
       waterSaved: project.waterSaved ?? null,
       actualCost: project.actualCost ?? null,
       status: project.status ?? "active",
@@ -392,4 +393,206 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+import { db } from "./db";
+import * as schema from "@shared/schema";
+import { eq, and, sql as drizzleSql } from "drizzle-orm";
+
+export class DatabaseStorage implements IStorage {
+  // Users
+  async getUser(id: string): Promise<User | undefined> {
+    const result = await db.select().from(schema.users).where(eq(schema.users.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const result = await db.select().from(schema.users).where(eq(schema.users.username, username)).limit(1);
+    return result[0];
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const result = await db.insert(schema.users).values(insertUser).returning();
+    return result[0];
+  }
+
+  async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
+    const result = await db.update(schema.users)
+      .set(updates)
+      .where(eq(schema.users.id, id))
+      .returning();
+    return result[0];
+  }
+
+  // Projects
+  async getProjects(userId: string): Promise<Project[]> {
+    return await db.select().from(schema.projects).where(eq(schema.projects.userId, userId));
+  }
+
+  async getProject(id: string): Promise<Project | undefined> {
+    const result = await db.select().from(schema.projects).where(eq(schema.projects.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createProject(insertProject: InsertProject): Promise<Project> {
+    const result = await db.insert(schema.projects).values(insertProject).returning();
+    return result[0];
+  }
+
+  async updateProject(id: string, updates: Partial<Project>): Promise<Project | undefined> {
+    const result = await db.update(schema.projects)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(schema.projects.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteProject(id: string): Promise<boolean> {
+    const result = await db.delete(schema.projects).where(eq(schema.projects.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Goals
+  async getGoals(userId: string): Promise<Goal[]> {
+    return await db.select().from(schema.goals).where(eq(schema.goals.userId, userId));
+  }
+
+  async getGoal(id: string): Promise<Goal | undefined> {
+    const result = await db.select().from(schema.goals).where(eq(schema.goals.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createGoal(insertGoal: InsertGoal): Promise<Goal> {
+    const result = await db.insert(schema.goals).values(insertGoal).returning();
+    return result[0];
+  }
+
+  async updateGoal(id: string, updates: Partial<Goal>): Promise<Goal | undefined> {
+    const result = await db.update(schema.goals)
+      .set(updates)
+      .where(eq(schema.goals.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteGoal(id: string): Promise<boolean> {
+    const result = await db.delete(schema.goals).where(eq(schema.goals.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Team Members
+  async getTeamMembers(userId: string): Promise<TeamMember[]> {
+    return await db.select().from(schema.teamMembers).where(eq(schema.teamMembers.userId, userId));
+  }
+
+  async createTeamMember(insertMember: InsertTeamMember): Promise<TeamMember> {
+    const result = await db.insert(schema.teamMembers).values(insertMember).returning();
+    return result[0];
+  }
+
+  async updateTeamMember(id: string, updates: Partial<TeamMember>): Promise<TeamMember | undefined> {
+    const result = await db.update(schema.teamMembers)
+      .set(updates)
+      .where(eq(schema.teamMembers.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteTeamMember(id: string): Promise<boolean> {
+    const result = await db.delete(schema.teamMembers).where(eq(schema.teamMembers.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // QR Code Scans
+  async recordQRScan(projectId: string): Promise<QRCodeScan> {
+    const result = await db.insert(schema.qrCodeScans).values({ projectId }).returning();
+    return result[0];
+  }
+
+  async getQRScans(projectId: string): Promise<number> {
+    const result = await db.select({ count: drizzleSql<number>`count(*)::int` })
+      .from(schema.qrCodeScans)
+      .where(eq(schema.qrCodeScans.projectId, projectId));
+    return result[0]?.count || 0;
+  }
+
+  // Survey Responses
+  async createSurveyResponse(insertResponse: InsertSurveyResponse): Promise<SurveyResponse> {
+    const result = await db.insert(schema.surveyResponses).values(insertResponse).returning();
+    return result[0];
+  }
+
+  async getSurveyResponses(projectId: string): Promise<SurveyResponse[]> {
+    return await db.select().from(schema.surveyResponses).where(eq(schema.surveyResponses.projectId, projectId));
+  }
+
+  async getProjectFeedbackScore(projectId: string): Promise<{ score: number; count: number }> {
+    const result = await db.select({
+      avg: drizzleSql<number>`COALESCE(AVG(rating), 0)`,
+      count: drizzleSql<number>`count(*)::int`
+    })
+      .from(schema.surveyResponses)
+      .where(eq(schema.surveyResponses.projectId, projectId));
+    
+    return {
+      score: Number(result[0]?.avg || 0),
+      count: result[0]?.count || 0
+    };
+  }
+
+  // Categories
+  async getCategories(): Promise<Category[]> {
+    return await db.select().from(schema.categories);
+  }
+
+  async getCategory(id: string): Promise<Category | undefined> {
+    const result = await db.select().from(schema.categories).where(eq(schema.categories.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createCategory(insertCategory: InsertCategory): Promise<Category> {
+    const result = await db.insert(schema.categories).values(insertCategory).returning();
+    return result[0];
+  }
+
+  // Category Metrics
+  async getCategoryMetrics(categoryId: string): Promise<CategoryMetric[]> {
+    return await db.select().from(schema.categoryMetrics).where(eq(schema.categoryMetrics.categoryId, categoryId));
+  }
+
+  async getRecommendedMetrics(categoryId: string): Promise<CategoryMetric[]> {
+    return await db.select().from(schema.categoryMetrics)
+      .where(and(
+        eq(schema.categoryMetrics.categoryId, categoryId),
+        eq(schema.categoryMetrics.isRecommended, true)
+      ));
+  }
+
+  async createCategoryMetric(insertMetric: InsertCategoryMetric): Promise<CategoryMetric> {
+    const result = await db.insert(schema.categoryMetrics).values(insertMetric).returning();
+    return result[0];
+  }
+
+  // Project Metrics
+  async getProjectMetrics(projectId: string): Promise<ProjectMetric[]> {
+    return await db.select().from(schema.projectMetrics).where(eq(schema.projectMetrics.projectId, projectId));
+  }
+
+  async createProjectMetric(insertMetric: InsertProjectMetric): Promise<ProjectMetric> {
+    const result = await db.insert(schema.projectMetrics).values(insertMetric).returning();
+    return result[0];
+  }
+
+  async deleteProjectMetric(id: string): Promise<boolean> {
+    const result = await db.delete(schema.projectMetrics).where(eq(schema.projectMetrics.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async updateProjectMetric(id: string, updates: Partial<ProjectMetric>): Promise<ProjectMetric | undefined> {
+    const result = await db.update(schema.projectMetrics)
+      .set(updates)
+      .where(eq(schema.projectMetrics.id, id))
+      .returning();
+    return result[0];
+  }
+}
+
+export const storage = new DatabaseStorage();
