@@ -155,6 +155,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Excel File Parsing API
+  app.post("/api/parse-excel", async (req, res) => {
+    try {
+      const { fileData } = req.body;
+      
+      if (!fileData) {
+        return res.status(400).json({ error: "fileData is required" });
+      }
+
+      // Import xlsx
+      const XLSX = await import("xlsx");
+      
+      // Convert base64 to buffer
+      const buffer = Buffer.from(fileData, "base64");
+      
+      // Parse Excel workbook
+      const workbook = XLSX.read(buffer, { type: "buffer" });
+      
+      // Get first sheet
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      
+      // Convert to JSON
+      const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      
+      // Extract headers (first row) and all data
+      const headers = data[0] as string[];
+      const rows = data.slice(1);
+      
+      // Build text representation for OpenAI
+      let text = `Excel Spreadsheet: ${sheetName}\n\n`;
+      text += `Columns: ${headers.join(", ")}\n\n`;
+      text += `Data:\n`;
+      rows.forEach((row: any) => {
+        text += row.join(" | ") + "\n";
+      });
+      
+      res.json({
+        text,
+        headers,
+        rows,
+        sheetName
+      });
+    } catch (error) {
+      console.error("Excel parsing error:", error);
+      res.status(500).json({ error: "Failed to parse Excel file" });
+    }
+  });
+
+  // Word Document Parsing API
+  app.post("/api/parse-word", async (req, res) => {
+    try {
+      const { fileData } = req.body;
+      
+      if (!fileData) {
+        return res.status(400).json({ error: "fileData is required" });
+      }
+
+      // Import mammoth
+      const mammoth = await import("mammoth");
+      
+      // Convert base64 to buffer
+      const buffer = Buffer.from(fileData, "base64");
+      
+      // Extract text from Word document
+      const result = await mammoth.extractRawText({ buffer });
+      
+      res.json({
+        text: result.value,
+        messages: result.messages
+      });
+    } catch (error) {
+      console.error("Word parsing error:", error);
+      res.status(500).json({ error: "Failed to parse Word document" });
+    }
+  });
+
   // Project Classification API - Uses OpenAI for intelligent project categorization
   app.post("/api/classify-project", async (req, res) => {
     try {
