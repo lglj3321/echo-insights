@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import pRetry from "p-retry";
+import pRetry, { AbortError } from "p-retry";
 
 // This is using Replit's AI Integrations service, which provides OpenAI-compatible API access without requiring your own OpenAI API key.
 const openai = new OpenAI({
@@ -79,7 +79,7 @@ Focus on the main theme of the project. If multiple categories apply, choose the
           if (isRateLimitError(error)) {
             throw error; // Rethrow to trigger p-retry
           }
-          throw new pRetry.AbortError(error);
+          throw new AbortError(error);
         }
       },
       {

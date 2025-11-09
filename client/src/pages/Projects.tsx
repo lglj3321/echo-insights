@@ -186,15 +186,52 @@ export default function Projects() {
           }
         });
       } 
-      // For Excel/PDF/Word files, show a message that parsing isn't yet supported
+      // For Excel files - not yet supported
       else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
         // Excel files require a different parser - for now, return empty
         // TODO: Implement Excel parsing using a library like xlsx
         resolve([]);
       }
-      else if (fileName.endsWith(".pdf") || fileName.endsWith(".doc") || fileName.endsWith(".docx")) {
-        // Document files require specialized parsers - for now, return empty
-        // TODO: Implement document parsing
+      // For PDF files - parse on backend and return text as a single metric
+      else if (fileName.endsWith(".pdf")) {
+        // Read PDF file and send to backend for parsing
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          try {
+            const base64 = e.target?.result as string;
+            const base64Data = base64.split(",")[1]; // Remove data:application/pdf;base64, prefix
+            
+            const response = await fetch("/api/parse-pdf", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ fileData: base64Data }),
+            });
+            
+            if (response.ok) {
+              const { text } = await response.json();
+              // Store PDF text as a special metric that will be used for classification
+              resolve([{
+                name: "PDF Content",
+                value: text.substring(0, 500), // First 500 chars as preview
+                source: "file",
+              }]);
+            } else {
+              console.error("PDF parsing failed");
+              resolve([]);
+            }
+          } catch (error) {
+            console.error("PDF processing error:", error);
+            resolve([]);
+          }
+        };
+        reader.onerror = () => {
+          console.error("File reading error");
+          resolve([]);
+        };
+        reader.readAsDataURL(file);
+      }
+      else if (fileName.endsWith(".doc") || fileName.endsWith(".docx")) {
+        // Word files not yet supported
         resolve([]);
       }
       else {
@@ -223,11 +260,47 @@ export default function Projects() {
         source: "user" as const,
       }));
 
-      // Extract file metrics if file uploaded
+      // Extract file metrics and full text if file uploaded
       let allCustomMetrics = [...userMetrics];
       let fileMetrics: any[] = [];
+      let fileText: string | undefined;
+      
       if (data.uploadedFile) {
         fileMetrics = await extractMetricsFromFile(data.uploadedFile);
+        
+        // If PDF, extract full text for classification
+        if (data.uploadedFile.name.toLowerCase().endsWith(".pdf")) {
+          const pdfMetric = fileMetrics.find(m => m.name === "PDF Content");
+          if (pdfMetric) {
+            // The metric has preview (500 chars), but we need full text
+            // Re-parse to get full text
+            const reader = new FileReader();
+            const pdfTextPromise = new Promise<string>((resolve) => {
+              reader.onload = async (e) => {
+                try {
+                  const base64 = e.target?.result as string;
+                  const base64Data = base64.split(",")[1];
+                  const response = await fetch("/api/parse-pdf", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ fileData: base64Data }),
+                  });
+                  if (response.ok) {
+                    const { text } = await response.json();
+                    resolve(text);
+                  } else {
+                    resolve("");
+                  }
+                } catch {
+                  resolve("");
+                }
+              };
+              reader.readAsDataURL(data.uploadedFile);
+            });
+            fileText = await pdfTextPromise;
+          }
+        }
+        
         allCustomMetrics = [
           ...allCustomMetrics,
           ...fileMetrics.map((m) => ({ ...m, source: "file" as const })),
@@ -244,6 +317,7 @@ export default function Projects() {
           description: data.description,
           customMetrics: userMetrics,
           csvData: fileMetrics,
+          fileText: fileText,
         }),
       });
 

@@ -125,88 +125,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Project Classification API
+  // PDF Text Extraction API
+  app.post("/api/parse-pdf", async (req, res) => {
+    try {
+      const { fileData } = req.body;
+      
+      if (!fileData) {
+        return res.status(400).json({ error: "fileData is required" });
+      }
+
+      // Import pdf-parse
+      const pdfParse = await import("pdf-parse");
+      const pdf = pdfParse.default || pdfParse;
+      
+      // Convert base64 to buffer
+      const buffer = Buffer.from(fileData, "base64");
+      
+      // Parse PDF
+      const data = await pdf(buffer);
+      
+      res.json({
+        text: data.text,
+        pages: data.numpages,
+        info: data.info
+      });
+    } catch (error) {
+      console.error("PDF parsing error:", error);
+      res.status(500).json({ error: "Failed to parse PDF" });
+    }
+  });
+
+  // Project Classification API - Uses OpenAI for intelligent project categorization
   app.post("/api/classify-project", async (req, res) => {
     try {
-      const { description, customMetrics, csvData } = req.body;
+      const { description, customMetrics, csvData, fileText } = req.body;
 
       if (!description) {
         return res.status(400).json({ error: "description is required" });
       }
 
-      // Prepare all text for analysis
-      const desc = description.toLowerCase();
-      const metricNames = (customMetrics || [])
-        .map((m: any) => m.name.toLowerCase())
-        .join(" ");
-      const csvHeaders = (csvData || [])
-        .map((m: any) => m.name.toLowerCase())
-        .join(" ");
-      const allText = `${desc} ${metricNames} ${csvHeaders}`;
+      // Import OpenAI classification service
+      const { classifyProject } = await import("./openai-service");
 
-      // Enhanced keyword-based classification
-      // TODO: Replace with OpenAI classification once integration is confirmed
-      const categoryScores: Record<string, number> = {
-        Packaging: 0,
-        Energy: 0,
-        Sourcing: 0,
-        Waste: 0,
-        Water: 0,
-      };
+      // Prepare metrics for classification
+      const allMetrics = [
+        ...(customMetrics || []),
+        ...(csvData || [])
+      ];
 
-      const keywords: Record<string, string[]> = {
-        Packaging: [
-          "packaging", "package", "container", "wrap", "box", "bottle",
-          "recyclable", "biodegradable", "plastic", "material", "compostable"
-        ],
-        Energy: [
-          "energy", "solar", "renewable", "power", "electricity", "kwh",
-          "efficiency", "consumption", "carbon", "emission", "co2", "fuel"
-        ],
-        Sourcing: [
-          "sourcing", "supplier", "local", "supply chain", "procurement",
-          "ingredients", "materials", "fair trade", "organic", "sustainable"
-        ],
-        Waste: [
-          "waste", "recycling", "compost", "landfill", "disposal",
-          "zero waste", "diversion", "reduction", "trash"
-        ],
-        Water: [
-          "water", "conservation", "recycling", "wastewater", "consumption",
-          "gallons", "rainwater", "aquifer", "irrigation"
-        ],
-      };
-
-      // Score each category
-      Object.entries(keywords).forEach(([category, words]) => {
-        words.forEach((keyword) => {
-          if (allText.includes(keyword)) {
-            categoryScores[category] += 1;
-          }
-        });
-      });
-
-      // Find top category
-      const sortedCategories = Object.entries(categoryScores).sort(
-        ([, a], [, b]) => b - a
-      );
-
-      const topCategory = sortedCategories[0];
-      const totalKeywords = Object.values(categoryScores).reduce((a, b) => a + b, 0);
-      
-      // Calculate confidence score (0-1)
-      const confidence = totalKeywords > 0 
-        ? topCategory[1] / totalKeywords 
-        : 0;
+      // Call OpenAI classification
+      const result = await classifyProject(description, allMetrics, fileText);
 
       res.json({
-        category: topCategory[1] > 0 ? topCategory[0] : "Other",
-        confidence: Math.round(confidence * 100) / 100,
-        method: "keyword-based", // Will be "ai" once OpenAI is integrated
+        category: result.category,
+        confidence: result.confidence / 100, // Convert to 0-1 range
+        reasoning: result.reasoning,
+        method: "ai"
       });
     } catch (error) {
-      console.error("Classification error:", error);
-      res.status(500).json({ error: "Failed to classify project" });
+      console.error("OpenAI Classification error:", error);
+      
+      // Fallback to simple keyword-based classification if OpenAI fails
+      try {
+        const { description, customMetrics, csvData } = req.body;
+        const allText = `${description} ${(customMetrics || []).map((m: any) => m.name).join(" ")} ${(csvData || []).map((m: any) => m.name).join(" ")}`.toLowerCase();
+        
+        const keywords: Record<string, string[]> = {
+          Packaging: ["packaging", "package", "container", "recyclable", "plastic"],
+          Energy: ["energy", "solar", "renewable", "carbon", "emission", "kwh"],
+          Sourcing: ["sourcing", "supplier", "local", "supply chain"],
+          Waste: ["waste", "recycling", "compost", "landfill"],
+          Water: ["water", "conservation", "wastewater"],
+        };
+
+        let bestCategory = "Other";
+        let bestScore = 0;
+
+        Object.entries(keywords).forEach(([category, words]) => {
+          const score = words.filter(word => allText.includes(word)).length;
+          if (score > bestScore) {
+            bestScore = score;
+            bestCategory = category;
+          }
+        });
+
+        res.json({
+          category: bestCategory,
+          confidence: bestScore > 0 ? 0.5 : 0,
+          reasoning: "Fallback keyword-based classification",
+          method: "keyword-fallback"
+        });
+      } catch (fallbackError) {
+        res.status(500).json({ error: "Failed to classify project" });
+      }
     }
   });
 
