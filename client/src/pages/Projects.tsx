@@ -204,20 +204,23 @@ export default function Projects() {
               const { headers, rows } = await response.json();
               const extractedMetrics: any[] = [];
               
-              // Extract metrics from first data row
-              if (headers && headers.length > 0 && rows && rows.length > 0) {
-                headers.forEach((header: string, index: number) => {
-                  if (!header || header.trim() === "") return;
-                  
-                  const value = rows[0][index];
-                  if (value !== undefined && value !== null && String(value).trim() !== "") {
-                    extractedMetrics.push({
-                      name: header,
-                      value: String(value),
-                      source: "file",
-                    });
-                  }
-                });
+              // Extract metrics from first data row (with defensive checks)
+              if (Array.isArray(headers) && headers.length > 0 && Array.isArray(rows) && rows.length > 0) {
+                const firstRow = rows[0];
+                if (Array.isArray(firstRow)) {
+                  headers.forEach((header: string, index: number) => {
+                    if (!header || String(header).trim() === "") return;
+                    
+                    const value = firstRow[index];
+                    if (value !== undefined && value !== null && String(value).trim() !== "") {
+                      extractedMetrics.push({
+                        name: String(header),
+                        value: String(value),
+                        source: "file",
+                      });
+                    }
+                  });
+                }
               }
               resolve(extractedMetrics);
             } else {
@@ -783,7 +786,11 @@ export default function Projects() {
               <DialogHeader>
                 <DialogTitle>Create New Project</DialogTitle>
               </DialogHeader>
-              <ProjectForm onSubmit={handleProjectSubmit} />
+              <ProjectForm 
+                key={isCreateDialogOpen ? 'create-form' : 'hidden'}
+                onSubmit={handleProjectSubmit} 
+                initialData={pendingProjectData}
+              />
             </DialogContent>
           </Dialog>
         </div>

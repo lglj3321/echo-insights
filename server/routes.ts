@@ -173,6 +173,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Parse Excel workbook
       const workbook = XLSX.read(buffer, { type: "buffer" });
       
+      // Check if workbook has sheets
+      if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+        return res.status(400).json({ 
+          error: "Excel file contains no sheets",
+          text: "",
+          headers: [],
+          rows: [],
+          sheetName: ""
+        });
+      }
+      
       // Get first sheet
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
@@ -180,22 +191,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Convert to JSON
       const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
       
+      // Check if sheet has data
+      if (!data || data.length === 0) {
+        return res.json({
+          text: `Excel Spreadsheet: ${sheetName}\n\nNo data found.`,
+          headers: [],
+          rows: [],
+          sheetName
+        });
+      }
+      
       // Extract headers (first row) and all data
-      const headers = data[0] as string[];
+      const headers = (data[0] as any[]) || [];
       const rows = data.slice(1);
+      
+      // Filter out empty headers
+      const validHeaders = headers.filter((h: any) => h !== undefined && h !== null && String(h).trim() !== "");
       
       // Build text representation for OpenAI
       let text = `Excel Spreadsheet: ${sheetName}\n\n`;
-      text += `Columns: ${headers.join(", ")}\n\n`;
-      text += `Data:\n`;
-      rows.forEach((row: any) => {
-        text += row.join(" | ") + "\n";
-      });
+      
+      if (validHeaders.length > 0) {
+        text += `Columns: ${validHeaders.join(", ")}\n\n`;
+      }
+      
+      if (rows && rows.length > 0) {
+        text += `Data:\n`;
+        rows.forEach((row: any) => {
+          if (row && Array.isArray(row)) {
+            text += row.join(" | ") + "\n";
+          }
+        });
+      } else {
+        text += `No data rows found.`;
+      }
       
       res.json({
         text,
-        headers,
-        rows,
+        headers: validHeaders,
+        rows: rows || [],
         sheetName
       });
     } catch (error) {

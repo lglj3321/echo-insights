@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, FileText, Plus, X } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface Metric {
   name: string;
@@ -57,6 +57,13 @@ export function ProjectForm({ onSubmit, initialData }: ProjectFormProps) {
       roi: initialData?.roi || 0,
     },
   });
+
+  // Initialize metrics from initialData when component mounts or initialData changes
+  useEffect(() => {
+    if (initialData && (initialData as any).metrics && (initialData as any).metrics.length > 0) {
+      setMetrics((initialData as any).metrics);
+    }
+  }, [initialData]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
