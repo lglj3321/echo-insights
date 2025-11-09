@@ -10,6 +10,12 @@ import {
   type QRCodeScan,
   type SurveyResponse,
   type InsertSurveyResponse,
+  type Category,
+  type InsertCategory,
+  type CategoryMetric,
+  type InsertCategoryMetric,
+  type ProjectMetric,
+  type InsertProjectMetric,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -48,6 +54,22 @@ export interface IStorage {
   createSurveyResponse(response: InsertSurveyResponse): Promise<SurveyResponse>;
   getSurveyResponses(projectId: string): Promise<SurveyResponse[]>;
   getProjectFeedbackScore(projectId: string): Promise<{ score: number; count: number }>;
+  
+  // Categories
+  getCategories(): Promise<Category[]>;
+  getCategory(id: string): Promise<Category | undefined>;
+  createCategory(category: InsertCategory): Promise<Category>;
+  
+  // Category Metrics
+  getCategoryMetrics(categoryId: string): Promise<CategoryMetric[]>;
+  getRecommendedMetrics(categoryId: string): Promise<CategoryMetric[]>;
+  createCategoryMetric(metric: InsertCategoryMetric): Promise<CategoryMetric>;
+  
+  // Project Metrics
+  getProjectMetrics(projectId: string): Promise<ProjectMetric[]>;
+  createProjectMetric(metric: InsertProjectMetric): Promise<ProjectMetric>;
+  deleteProjectMetric(id: string): Promise<boolean>;
+  updateProjectMetric(id: string, updates: Partial<ProjectMetric>): Promise<ProjectMetric | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -57,6 +79,9 @@ export class MemStorage implements IStorage {
   private teamMembers: Map<string, TeamMember>;
   private qrScans: Map<string, QRCodeScan[]>;
   private surveyResponses: Map<string, SurveyResponse[]>;
+  private categories: Map<string, Category>;
+  private categoryMetrics: Map<string, CategoryMetric>;
+  private projectMetrics: Map<string, ProjectMetric[]>;
 
   constructor() {
     this.users = new Map();
@@ -65,6 +90,9 @@ export class MemStorage implements IStorage {
     this.teamMembers = new Map();
     this.qrScans = new Map();
     this.surveyResponses = new Map();
+    this.categories = new Map();
+    this.categoryMetrics = new Map();
+    this.projectMetrics = new Map();
   }
 
   // User methods
@@ -123,6 +151,7 @@ export class MemStorage implements IStorage {
     const newProject: Project = {
       ...project,
       id,
+      waterSaved: project.waterSaved ?? null,
       actualCost: null,
       status: "active",
       assignedTo: null,
@@ -161,6 +190,8 @@ export class MemStorage implements IStorage {
     const newGoal: Goal = {
       ...goal,
       id,
+      description: goal.description ?? null,
+      currentValue: goal.currentValue ?? "0",
       status: "active",
       createdAt: new Date(),
     };
@@ -190,6 +221,7 @@ export class MemStorage implements IStorage {
     const newMember: TeamMember = {
       ...member,
       id,
+      invitedBy: member.invitedBy ?? null,
       status: "pending",
       createdAt: new Date(),
     };
@@ -233,6 +265,8 @@ export class MemStorage implements IStorage {
     const newResponse: SurveyResponse = {
       ...response,
       id,
+      numericValue: response.numericValue ?? null,
+      metadata: response.metadata ?? null,
       createdAt: new Date(),
     };
     const responses = this.surveyResponses.get(response.projectId) || [];
@@ -256,6 +290,103 @@ export class MemStorage implements IStorage {
     const avg = sum / numericResponses.length;
     
     return { score: avg, count: numericResponses.length };
+  }
+
+  // Category methods
+  async getCategories(): Promise<Category[]> {
+    return Array.from(this.categories.values());
+  }
+
+  async getCategory(id: string): Promise<Category | undefined> {
+    return this.categories.get(id);
+  }
+
+  async createCategory(category: InsertCategory): Promise<Category> {
+    const id = randomUUID();
+    const newCategory: Category = {
+      ...category,
+      id,
+      description: category.description ?? null,
+      icon: category.icon ?? null,
+      createdAt: new Date(),
+    };
+    this.categories.set(id, newCategory);
+    return newCategory;
+  }
+
+  // Category Metric methods
+  async getCategoryMetrics(categoryId: string): Promise<CategoryMetric[]> {
+    return Array.from(this.categoryMetrics.values()).filter(m => m.categoryId === categoryId);
+  }
+
+  async getRecommendedMetrics(categoryId: string): Promise<CategoryMetric[]> {
+    return Array.from(this.categoryMetrics.values()).filter(
+      m => m.categoryId === categoryId && m.isRecommended === true
+    );
+  }
+
+  async createCategoryMetric(metric: InsertCategoryMetric): Promise<CategoryMetric> {
+    const id = randomUUID();
+    const newMetric: CategoryMetric = {
+      ...metric,
+      id,
+      unit: metric.unit ?? null,
+      normalizationMethod: metric.normalizationMethod ?? null,
+      normalizationMetadata: metric.normalizationMetadata ?? null,
+      weight: metric.weight ?? "1.0",
+      isRecommended: metric.isRecommended ?? true,
+      createdAt: new Date(),
+    };
+    this.categoryMetrics.set(id, newMetric);
+    return newMetric;
+  }
+
+  // Project Metric methods
+  async getProjectMetrics(projectId: string): Promise<ProjectMetric[]> {
+    return this.projectMetrics.get(projectId) || [];
+  }
+
+  async createProjectMetric(metric: InsertProjectMetric): Promise<ProjectMetric> {
+    const id = randomUUID();
+    const newMetric: ProjectMetric = {
+      ...metric,
+      id,
+      normalizedScore: metric.normalizedScore ?? null,
+      unit: metric.unit ?? null,
+      source: metric.source ?? null,
+      metadata: metric.metadata ?? null,
+      createdAt: new Date(),
+    };
+    const metrics = this.projectMetrics.get(metric.projectId) || [];
+    metrics.push(newMetric);
+    this.projectMetrics.set(metric.projectId, metrics);
+    return newMetric;
+  }
+
+  async deleteProjectMetric(id: string): Promise<boolean> {
+    for (const [projectId, metrics] of this.projectMetrics.entries()) {
+      const index = metrics.findIndex(m => m.id === id);
+      if (index !== -1) {
+        metrics.splice(index, 1);
+        this.projectMetrics.set(projectId, metrics);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  async updateProjectMetric(id: string, updates: Partial<ProjectMetric>): Promise<ProjectMetric | undefined> {
+    for (const [projectId, metrics] of this.projectMetrics.entries()) {
+      const metric = metrics.find(m => m.id === id);
+      if (metric) {
+        const updated = { ...metric, ...updates };
+        const index = metrics.findIndex(m => m.id === id);
+        metrics[index] = updated;
+        this.projectMetrics.set(projectId, metrics);
+        return updated;
+      }
+    }
+    return undefined;
   }
 }
 
