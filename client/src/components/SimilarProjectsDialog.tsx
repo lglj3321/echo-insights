@@ -223,13 +223,6 @@ export function SimilarProjectsDialog({
                             </div>
                             <p className="font-semibold">{similar.project.roi}%</p>
                           </div>
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1 text-muted-foreground">
-                              <Leaf className="h-3 w-3" />
-                              <span className="text-xs">CO₂ Saved</span>
-                            </div>
-                            <p className="font-semibold">{similar.project.co2Saved}T</p>
-                          </div>
                           {similar.project.feedbackScore && (
                             <div className="space-y-1">
                               <div className="text-xs text-muted-foreground">Feedback</div>

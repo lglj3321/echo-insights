@@ -6,11 +6,7 @@ import {
   MetricsSelectionDialog,
   MetricItem,
 } from "@/components/MetricsSelectionDialog";
-import { SimilarProjectsDialog } from "@/components/SimilarProjectsDialog";
-import {
-  CategoryMetricsDialog,
-  RecommendedMetric as CategoryMetric,
-} from "@/components/CategoryMetricsDialog";
+import { FinalizeProjectDialog } from "@/components/FinalizeProjectDialog";
 import {
   RecommendedMetricsDialog,
   RecommendedMetric,
@@ -46,9 +42,7 @@ export default function Projects() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isRecommendedMetricsDialogOpen, setIsRecommendedMetricsDialogOpen] =
     useState(false);
-  const [isSimilarProjectsDialogOpen, setIsSimilarProjectsDialogOpen] =
-    useState(false);
-  const [isCategoryMetricsDialogOpen, setIsCategoryMetricsDialogOpen] =
+  const [isFinalizeDialogOpen, setIsFinalizeDialogOpen] =
     useState(false);
   const [pendingMetrics, setPendingMetrics] = useState<MetricItem[]>([]);
   const [pendingCustomMetrics, setPendingCustomMetrics] = useState<CustomMetric[]>([]);
@@ -493,10 +487,10 @@ export default function Projects() {
       })),
     });
 
-    // Always show similarity dialog (even if no matches)
+    // Always show finalize dialog (even if no matches)
     setTimeout(() => {
       setSimilarProjects(similar);
-      setIsSimilarProjectsDialogOpen(true);
+      setIsFinalizeDialogOpen(true);
     }, 100);
   };
 
@@ -533,7 +527,9 @@ export default function Projects() {
     });
 
     setPendingMetrics([]);
+    setPendingCustomMetrics([]);
     setPendingProjectData(null);
+    setIsFinalizeDialogOpen(false);
 
     // Redirect to the target project's details page
     window.location.href = `/project/${projectId}?merged=true`;
@@ -546,7 +542,9 @@ export default function Projects() {
       variant: "destructive",
     });
     setPendingMetrics([]);
+    setPendingCustomMetrics([]);
     setPendingProjectData(null);
+    setIsFinalizeDialogOpen(false);
   };
 
   const categorizeProject = (
@@ -647,21 +645,7 @@ export default function Projects() {
     return topCategory[1] > 0 ? topCategory[0] : "Packaging";
   };
 
-  const handleProceedWithProject = () => {
-    console.log("Proceeding to category selection");
-    // Close similar projects dialog
-    setIsSimilarProjectsDialogOpen(false);
-
-    // Use AI-detected category if available, otherwise fall back to keyword-based categorization
-    const category = detectedCategory || categorizeProject(pendingProjectData, pendingMetrics);
-    setSuggestedCategory(category);
-
-    setTimeout(() => {
-      setIsCategoryMetricsDialogOpen(true);
-    }, 100);
-  };
-
-  const handleCategoryMetricsSubmit = async (category: string) => {
+  const handleFinalizeProject = async (category: string) => {
     const displayCategory = pendingProjectData?.customCategory || category;
     
     if (!user) {
@@ -705,7 +689,7 @@ export default function Projects() {
       setPendingMetrics([]);
       setPendingCustomMetrics([]);
       setPendingProjectData(null);
-      setIsCategoryMetricsDialogOpen(false);
+      setIsFinalizeDialogOpen(false);
 
       window.location.href = `/project/${projectId}`;
     } catch (error) {
@@ -851,20 +835,14 @@ export default function Projects() {
         </DialogContent>
       </Dialog>
 
-      <SimilarProjectsDialog
-        open={isSimilarProjectsDialogOpen}
-        onOpenChange={setIsSimilarProjectsDialogOpen}
+      <FinalizeProjectDialog
+        open={isFinalizeDialogOpen}
+        onOpenChange={setIsFinalizeDialogOpen}
         similarProjects={similarProjects}
+        suggestedCategory={detectedCategory || categorizeProject(pendingProjectData, pendingMetrics)}
         onMerge={handleMergeProject}
         onCancel={handleCancelProject}
-        onProceed={handleProceedWithProject}
-      />
-
-      <CategoryMetricsDialog
-        open={isCategoryMetricsDialogOpen}
-        onOpenChange={setIsCategoryMetricsDialogOpen}
-        suggestedCategory={suggestedCategory}
-        onSubmit={handleCategoryMetricsSubmit}
+        onFinalize={handleFinalizeProject}
       />
     </div>
   );
