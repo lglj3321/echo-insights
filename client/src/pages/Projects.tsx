@@ -186,20 +186,62 @@ export default function Projects() {
           }
         });
       } 
-      // For Excel files - not yet supported
+      // For Excel files
       else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
-        // Excel files require a different parser - for now, return empty
-        // TODO: Implement Excel parsing using a library like xlsx
-        resolve([]);
-      }
-      // For PDF files - parse on backend and return text as a single metric
-      else if (fileName.endsWith(".pdf")) {
-        // Read PDF file and send to backend for parsing
         const reader = new FileReader();
         reader.onload = async (e) => {
           try {
             const base64 = e.target?.result as string;
-            const base64Data = base64.split(",")[1]; // Remove data:application/pdf;base64, prefix
+            const base64Data = base64.split(",")[1];
+            
+            const response = await fetch("/api/parse-excel", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ fileData: base64Data }),
+            });
+            
+            if (response.ok) {
+              const { headers, rows } = await response.json();
+              const extractedMetrics: any[] = [];
+              
+              // Extract metrics from first data row
+              if (headers && headers.length > 0 && rows && rows.length > 0) {
+                headers.forEach((header: string, index: number) => {
+                  if (!header || header.trim() === "") return;
+                  
+                  const value = rows[0][index];
+                  if (value !== undefined && value !== null && String(value).trim() !== "") {
+                    extractedMetrics.push({
+                      name: header,
+                      value: String(value),
+                      source: "file",
+                    });
+                  }
+                });
+              }
+              resolve(extractedMetrics);
+            } else {
+              console.error("Excel parsing failed");
+              resolve([]);
+            }
+          } catch (error) {
+            console.error("Excel processing error:", error);
+            resolve([]);
+          }
+        };
+        reader.onerror = () => {
+          console.error("File reading error");
+          resolve([]);
+        };
+        reader.readAsDataURL(file);
+      }
+      // For PDF files - parse on backend and return text as a single metric
+      else if (fileName.endsWith(".pdf")) {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          try {
+            const base64 = e.target?.result as string;
+            const base64Data = base64.split(",")[1];
             
             const response = await fetch("/api/parse-pdf", {
               method: "POST",
@@ -209,10 +251,9 @@ export default function Projects() {
             
             if (response.ok) {
               const { text } = await response.json();
-              // Store PDF text as a special metric that will be used for classification
               resolve([{
                 name: "PDF Content",
-                value: text.substring(0, 500), // First 500 chars as preview
+                value: text.substring(0, 500),
                 source: "file",
               }]);
             } else {
@@ -230,9 +271,41 @@ export default function Projects() {
         };
         reader.readAsDataURL(file);
       }
+      // For Word files
       else if (fileName.endsWith(".doc") || fileName.endsWith(".docx")) {
-        // Word files not yet supported
-        resolve([]);
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          try {
+            const base64 = e.target?.result as string;
+            const base64Data = base64.split(",")[1];
+            
+            const response = await fetch("/api/parse-word", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ fileData: base64Data }),
+            });
+            
+            if (response.ok) {
+              const { text } = await response.json();
+              resolve([{
+                name: "Word Document Content",
+                value: text.substring(0, 500),
+                source: "file",
+              }]);
+            } else {
+              console.error("Word parsing failed");
+              resolve([]);
+            }
+          } catch (error) {
+            console.error("Word processing error:", error);
+            resolve([]);
+          }
+        };
+        reader.onerror = () => {
+          console.error("File reading error");
+          resolve([]);
+        };
+        reader.readAsDataURL(file);
       }
       else {
         resolve([]);
@@ -268,38 +341,63 @@ export default function Projects() {
       if (data.uploadedFile) {
         fileMetrics = await extractMetricsFromFile(data.uploadedFile);
         
-        // If PDF, extract full text for classification
-        if (data.uploadedFile.name.toLowerCase().endsWith(".pdf")) {
-          const pdfMetric = fileMetrics.find(m => m.name === "PDF Content");
-          if (pdfMetric) {
-            // The metric has preview (500 chars), but we need full text
-            // Re-parse to get full text
-            const reader = new FileReader();
-            const pdfTextPromise = new Promise<string>((resolve) => {
-              reader.onload = async (e) => {
-                try {
-                  const base64 = e.target?.result as string;
-                  const base64Data = base64.split(",")[1];
-                  const response = await fetch("/api/parse-pdf", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ fileData: base64Data }),
-                  });
-                  if (response.ok) {
-                    const { text } = await response.json();
-                    resolve(text);
-                  } else {
-                    resolve("");
-                  }
-                } catch {
+        // Extract full text for OpenAI classification from PDF, Word, or Excel files
+        const fileName = data.uploadedFile.name.toLowerCase();
+        const reader = new FileReader();
+        
+        const extractFullText = new Promise<string>((resolve) => {
+          reader.onload = async (e) => {
+            try {
+              const base64 = e.target?.result as string;
+              const base64Data = base64.split(",")[1];
+              
+              if (fileName.endsWith(".pdf")) {
+                const response = await fetch("/api/parse-pdf", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ fileData: base64Data }),
+                });
+                if (response.ok) {
+                  const { text } = await response.json();
+                  resolve(text);
+                } else {
                   resolve("");
                 }
-              };
-              reader.readAsDataURL(data.uploadedFile);
-            });
-            fileText = await pdfTextPromise;
-          }
-        }
+              } else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
+                const response = await fetch("/api/parse-excel", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ fileData: base64Data }),
+                });
+                if (response.ok) {
+                  const { text } = await response.json();
+                  resolve(text);
+                } else {
+                  resolve("");
+                }
+              } else if (fileName.endsWith(".doc") || fileName.endsWith(".docx")) {
+                const response = await fetch("/api/parse-word", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ fileData: base64Data }),
+                });
+                if (response.ok) {
+                  const { text } = await response.json();
+                  resolve(text);
+                } else {
+                  resolve("");
+                }
+              } else {
+                resolve("");
+              }
+            } catch {
+              resolve("");
+            }
+          };
+          reader.readAsDataURL(data.uploadedFile);
+        });
+        
+        fileText = await extractFullText;
         
         allCustomMetrics = [
           ...allCustomMetrics,
