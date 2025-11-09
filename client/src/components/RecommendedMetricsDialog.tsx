@@ -12,8 +12,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Sparkles, TrendingUp, Info, User, FileText } from "lucide-react";
+import { Sparkles, TrendingUp, Info, User, FileText, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export interface RecommendedMetric {
   name: string;
@@ -112,6 +119,8 @@ const categorizeFromDescription = (description: string): string => {
   return "Packaging";
 };
 
+const CATEGORY_OPTIONS = ["Packaging", "Energy", "Sourcing", "Waste", "Water", "Logistics"];
+
 export function RecommendedMetricsDialog({
   open,
   onOpenChange,
@@ -120,7 +129,12 @@ export function RecommendedMetricsDialog({
   onSubmit,
 }: RecommendedMetricsDialogProps) {
   const detectedCategory = categorizeFromDescription(projectDescription);
-  const recommendedMetrics = RECOMMENDED_METRICS_BY_CATEGORY[detectedCategory] || [];
+  
+  // Track selected category (can be overridden by user)
+  const [selectedCategory, setSelectedCategory] = useState<string>(detectedCategory);
+  const [isManuallySelected, setIsManuallySelected] = useState(false);
+  
+  const recommendedMetrics = RECOMMENDED_METRICS_BY_CATEGORY[selectedCategory] || [];
   
   // Use combined selection state with keys like "ai-0", "custom-0", etc.
   const [selectedMetrics, setSelectedMetrics] = useState<Set<string>>(new Set());
@@ -128,11 +142,25 @@ export function RecommendedMetricsDialog({
   // Reset selections when dialog opens with new project
   useEffect(() => {
     if (open) {
+      // Reset to detected category when dialog opens
+      setSelectedCategory(detectedCategory);
+      setIsManuallySelected(false);
+      
       // Pre-select all custom metrics by default
       const preselected = new Set(customMetrics.map((_, index) => `custom-${index}`));
       setSelectedMetrics(preselected);
     }
-  }, [open, customMetrics]);
+  }, [open, customMetrics, detectedCategory]);
+
+  const handleCategoryChange = (newCategory: string) => {
+    setSelectedCategory(newCategory);
+    setIsManuallySelected(true);
+    // Clear AI metric selections when category changes (custom metrics remain selected)
+    const newSelected = new Set(
+      Array.from(selectedMetrics).filter(key => key.startsWith('custom-'))
+    );
+    setSelectedMetrics(newSelected);
+  };
 
   const toggleMetric = (key: string) => {
     const newSelected = new Set(selectedMetrics);
@@ -171,19 +199,52 @@ export function RecommendedMetricsDialog({
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Category Selection Section */}
+          <div className="space-y-3">
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <span className="font-semibold">
+                      {isManuallySelected ? "Selected" : "AI-Detected"} Category: {selectedCategory}
+                    </span>
+                    {!isManuallySelected && (
+                      <p className="text-sm mt-1">
+                        Based on your project description, we detected this as a {selectedCategory.toLowerCase()} project.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </AlertDescription>
+            </Alert>
+
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium whitespace-nowrap">
+                Project Category:
+              </label>
+              <Select value={selectedCategory} onValueChange={handleCategoryChange}>
+                <SelectTrigger className="w-full" data-testid="select-category">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORY_OPTIONS.map((category) => (
+                    <SelectItem key={category} value={category} data-testid={`category-${category.toLowerCase()}`}>
+                      {category}
+                      {category === detectedCategory && (
+                        <span className="text-xs text-muted-foreground ml-2">(AI detected)</span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           {/* AI-Recommended Metrics Section */}
           {recommendedMetrics.length > 0 && (
             <>
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertDescription>
-                  <span className="font-semibold">Detected Category: {detectedCategory}</span>
-                  <p className="text-sm mt-1">
-                    Based on your project description, we suggest these metrics commonly used for {detectedCategory.toLowerCase()} projects.
-                  </p>
-                </AlertDescription>
-              </Alert>
-
+              <Separator />
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-muted-foreground" />
