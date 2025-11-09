@@ -249,7 +249,7 @@ export function ProjectForm({ onSubmit, initialData }: ProjectFormProps) {
                 <input
                   id="file-upload"
                   type="file"
-                  accept=".csv,.xlsx,.pdf,.doc,.docx"
+                  accept=".csv,.xlsx,.xls"
                   onChange={handleFileChange}
                   className="hidden"
                   data-testid="input-file"
@@ -272,7 +272,7 @@ export function ProjectForm({ onSubmit, initialData }: ProjectFormProps) {
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Upload CSV, Excel, PDF, or Word documents (max 10MB)
+                Upload CSV or Excel files to extract metrics (max 10MB)
               </p>
             </div>
 

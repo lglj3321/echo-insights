@@ -151,32 +151,59 @@ export default function Projects() {
       const fileName = file.name.toLowerCase();
       const extractedMetrics: MetricItem[] = [];
 
-      // Parse CSV files using PapaParse
+      // Parse CSV files using PapaParse - Read vertically (first column = metric names)
       if (fileName.endsWith(".csv")) {
         Papa.parse(file, {
-          header: true,
+          header: false, // Don't use header mode, read as raw array
           skipEmptyLines: true,
+          // Auto-detect delimiter (supports comma, semicolon, tab, etc.)
           complete: (results) => {
-            if (results.data && results.data.length > 0) {
-              const headers = Object.keys(results.data[0] as any);
+            if (results.data && results.data.length > 1) {
+              const rows = results.data as any[][];
               
-              // Extract metrics from CSV columns
-              headers.forEach((header) => {
-                if (!header || header.trim() === "") return;
+              // First row = headers to find value/unit columns
+              const headerRow = rows[0];
+              let valueColIndex = -1;
+              let unitColIndex = -1;
+              
+              // Detect columns by keywords (case-insensitive)
+              headerRow.forEach((header: any, index: number) => {
+                const headerStr = String(header || "").toLowerCase();
+                if (headerStr.includes("value") || headerStr.includes("metric")) {
+                  valueColIndex = index;
+                }
+                if (headerStr.includes("unit") || headerStr.includes("measure")) {
+                  unitColIndex = index;
+                }
+              });
+              
+              // Extract metrics from remaining rows (first column = metric name)
+              for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                if (!Array.isArray(row) || row.length === 0) continue;
                 
-                // Get the first non-empty value from this column
-                const firstRow = results.data[0] as any;
-                const value = firstRow[header];
+                const metricName = row[0];
+                if (!metricName || String(metricName).trim() === "") continue;
                 
-                // Only add if we have a value
-                if (value !== undefined && value !== null && String(value).trim() !== "") {
+                // Build value string
+                let valueStr = "";
+                if (valueColIndex >= 0 && row[valueColIndex]) {
+                  valueStr = String(row[valueColIndex]);
+                }
+                
+                if (unitColIndex >= 0 && row[unitColIndex]) {
+                  const unit = String(row[unitColIndex]);
+                  valueStr = valueStr ? `${valueStr} ${unit}` : unit;
+                }
+                
+                if (valueStr.trim()) {
                   extractedMetrics.push({
-                    name: header,
-                    value: String(value),
+                    name: String(metricName),
+                    value: valueStr,
                     source: "file",
                   });
                 }
-              });
+              }
             }
             resolve(extractedMetrics);
           },
@@ -186,7 +213,7 @@ export default function Projects() {
           }
         });
       } 
-      // For Excel files
+      // For Excel files - Read vertically (first column = metric names)
       else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
         const reader = new FileReader();
         reader.onload = async (e) => {
@@ -201,26 +228,17 @@ export default function Projects() {
             });
             
             if (response.ok) {
-              const { headers, rows } = await response.json();
+              const { metrics } = await response.json();
               const extractedMetrics: any[] = [];
               
-              // Extract metrics from first data row (with defensive checks)
-              if (Array.isArray(headers) && headers.length > 0 && Array.isArray(rows) && rows.length > 0) {
-                const firstRow = rows[0];
-                if (Array.isArray(firstRow)) {
-                  headers.forEach((header: string, index: number) => {
-                    if (!header || String(header).trim() === "") return;
-                    
-                    const value = firstRow[index];
-                    if (value !== undefined && value !== null && String(value).trim() !== "") {
-                      extractedMetrics.push({
-                        name: String(header),
-                        value: String(value),
-                        source: "file",
-                      });
-                    }
+              if (Array.isArray(metrics)) {
+                metrics.forEach((metric: { name: string; value: string }) => {
+                  extractedMetrics.push({
+                    name: metric.name,
+                    value: metric.value,
+                    source: "file",
                   });
-                }
+                });
               }
               resolve(extractedMetrics);
             } else {
@@ -229,78 +247,6 @@ export default function Projects() {
             }
           } catch (error) {
             console.error("Excel processing error:", error);
-            resolve([]);
-          }
-        };
-        reader.onerror = () => {
-          console.error("File reading error");
-          resolve([]);
-        };
-        reader.readAsDataURL(file);
-      }
-      // For PDF files - parse on backend and return text as a single metric
-      else if (fileName.endsWith(".pdf")) {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-          try {
-            const base64 = e.target?.result as string;
-            const base64Data = base64.split(",")[1];
-            
-            const response = await fetch("/api/parse-pdf", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ fileData: base64Data }),
-            });
-            
-            if (response.ok) {
-              const { text } = await response.json();
-              resolve([{
-                name: "PDF Content",
-                value: text.substring(0, 500),
-                source: "file",
-              }]);
-            } else {
-              console.error("PDF parsing failed");
-              resolve([]);
-            }
-          } catch (error) {
-            console.error("PDF processing error:", error);
-            resolve([]);
-          }
-        };
-        reader.onerror = () => {
-          console.error("File reading error");
-          resolve([]);
-        };
-        reader.readAsDataURL(file);
-      }
-      // For Word files
-      else if (fileName.endsWith(".doc") || fileName.endsWith(".docx")) {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-          try {
-            const base64 = e.target?.result as string;
-            const base64Data = base64.split(",")[1];
-            
-            const response = await fetch("/api/parse-word", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ fileData: base64Data }),
-            });
-            
-            if (response.ok) {
-              const { text } = await response.json();
-              resolve([{
-                name: "Word Document Content",
-                value: text.substring(0, 500),
-                source: "file",
-              }]);
-            } else {
-              console.error("Word parsing failed");
-              resolve([]);
-            }
-          } catch (error) {
-            console.error("Word processing error:", error);
             resolve([]);
           }
         };
@@ -344,7 +290,7 @@ export default function Projects() {
       if (data.uploadedFile) {
         fileMetrics = await extractMetricsFromFile(data.uploadedFile);
         
-        // Extract full text for OpenAI classification from PDF, Word, or Excel files
+        // Extract full text for OpenAI classification from Excel files
         const fileName = data.uploadedFile.name.toLowerCase();
         const reader = new FileReader();
         
@@ -354,32 +300,8 @@ export default function Projects() {
               const base64 = e.target?.result as string;
               const base64Data = base64.split(",")[1];
               
-              if (fileName.endsWith(".pdf")) {
-                const response = await fetch("/api/parse-pdf", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ fileData: base64Data }),
-                });
-                if (response.ok) {
-                  const { text } = await response.json();
-                  resolve(text);
-                } else {
-                  resolve("");
-                }
-              } else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
+              if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
                 const response = await fetch("/api/parse-excel", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ fileData: base64Data }),
-                });
-                if (response.ok) {
-                  const { text } = await response.json();
-                  resolve(text);
-                } else {
-                  resolve("");
-                }
-              } else if (fileName.endsWith(".doc") || fileName.endsWith(".docx")) {
-                const response = await fetch("/api/parse-word", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ fileData: base64Data }),

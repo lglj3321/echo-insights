@@ -125,37 +125,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // PDF Text Extraction API
-  app.post("/api/parse-pdf", async (req, res) => {
-    try {
-      const { fileData } = req.body;
-      
-      if (!fileData) {
-        return res.status(400).json({ error: "fileData is required" });
-      }
 
-      // Import pdf-parse
-      const pdfParse = await import("pdf-parse");
-      const pdf = pdfParse.default || pdfParse;
-      
-      // Convert base64 to buffer
-      const buffer = Buffer.from(fileData, "base64");
-      
-      // Parse PDF
-      const data = await pdf(buffer);
-      
-      res.json({
-        text: data.text,
-        pages: data.numpages,
-        info: data.info
-      });
-    } catch (error) {
-      console.error("PDF parsing error:", error);
-      res.status(500).json({ error: "Failed to parse PDF" });
-    }
-  });
-
-  // Excel File Parsing API
+  // Excel File Parsing API - Reads vertically (first column = metric names)
   app.post("/api/parse-excel", async (req, res) => {
     try {
       const { fileData } = req.body;
@@ -178,9 +149,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ 
           error: "Excel file contains no sheets",
           text: "",
-          headers: [],
-          rows: [],
-          sheetName: ""
+          metrics: []
         });
       }
       
@@ -188,49 +157,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
       
-      // Convert to JSON
+      // Convert to JSON (array of arrays)
       const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
       
       // Check if sheet has data
       if (!data || data.length === 0) {
         return res.json({
           text: `Excel Spreadsheet: ${sheetName}\n\nNo data found.`,
-          headers: [],
-          rows: [],
-          sheetName
+          metrics: []
         });
       }
       
-      // Extract headers (first row) and all data
-      const headers = (data[0] as any[]) || [];
-      const rows = data.slice(1);
+      // Find header row and identify value/unit columns
+      const headerRow = (data[0] as any[]) || [];
+      let valueColIndex = -1;
+      let unitColIndex = -1;
       
-      // Filter out empty headers
-      const validHeaders = headers.filter((h: any) => h !== undefined && h !== null && String(h).trim() !== "");
+      // Detect columns by keywords (case-insensitive)
+      headerRow.forEach((header: any, index: number) => {
+        const headerStr = String(header || "").toLowerCase();
+        if (headerStr.includes("value") || headerStr.includes("metric")) {
+          valueColIndex = index;
+        }
+        if (headerStr.includes("unit") || headerStr.includes("measure")) {
+          unitColIndex = index;
+        }
+      });
+      
+      // Extract metrics from first column (excluding header row)
+      const metrics: Array<{ name: string; value: string }> = [];
+      const rows = data.slice(1); // Skip header row
+      
+      rows.forEach((row: any) => {
+        if (!Array.isArray(row) || row.length === 0) return;
+        
+        const metricName = row[0]; // First column = metric name
+        if (!metricName || String(metricName).trim() === "") return;
+        
+        // Build value string
+        let valueStr = "";
+        if (valueColIndex >= 0 && row[valueColIndex]) {
+          valueStr = String(row[valueColIndex]);
+        }
+        
+        if (unitColIndex >= 0 && row[unitColIndex]) {
+          const unit = String(row[unitColIndex]);
+          valueStr = valueStr ? `${valueStr} ${unit}` : unit;
+        }
+        
+        if (valueStr.trim()) {
+          metrics.push({
+            name: String(metricName),
+            value: valueStr
+          });
+        }
+      });
       
       // Build text representation for OpenAI
       let text = `Excel Spreadsheet: ${sheetName}\n\n`;
-      
-      if (validHeaders.length > 0) {
-        text += `Columns: ${validHeaders.join(", ")}\n\n`;
-      }
-      
-      if (rows && rows.length > 0) {
-        text += `Data:\n`;
-        rows.forEach((row: any) => {
-          if (row && Array.isArray(row)) {
-            text += row.join(" | ") + "\n";
-          }
+      if (metrics.length > 0) {
+        text += `Metrics:\n`;
+        metrics.forEach(m => {
+          text += `- ${m.name}: ${m.value}\n`;
         });
       } else {
-        text += `No data rows found.`;
+        text += `No metrics found.`;
       }
       
       res.json({
         text,
-        headers: validHeaders,
-        rows: rows || [],
-        sheetName
+        metrics
       });
     } catch (error) {
       console.error("Excel parsing error:", error);
@@ -238,33 +234,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Word Document Parsing API
-  app.post("/api/parse-word", async (req, res) => {
-    try {
-      const { fileData } = req.body;
-      
-      if (!fileData) {
-        return res.status(400).json({ error: "fileData is required" });
-      }
-
-      // Import mammoth
-      const mammoth = await import("mammoth");
-      
-      // Convert base64 to buffer
-      const buffer = Buffer.from(fileData, "base64");
-      
-      // Extract text from Word document
-      const result = await mammoth.extractRawText({ buffer });
-      
-      res.json({
-        text: result.value,
-        messages: result.messages
-      });
-    } catch (error) {
-      console.error("Word parsing error:", error);
-      res.status(500).json({ error: "Failed to parse Word document" });
-    }
-  });
 
   // Project Classification API - Uses OpenAI for intelligent project categorization
   app.post("/api/classify-project", async (req, res) => {
