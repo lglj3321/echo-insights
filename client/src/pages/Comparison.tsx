@@ -195,7 +195,6 @@ export default function Comparison() {
           {selectedProjects.size} / 3 Selected
         </Badge>
       </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader>
@@ -354,7 +353,7 @@ export default function Comparison() {
                     <div>
                       <div className="flex items-center gap-2 mb-4">
                         <CheckCircle2 className="h-5 w-5 text-primary" />
-                        <h3 className="text-lg font-semibold">Overlapping Metrics</h3>
+                        <h3 className="text-lg font-semibold">Shared Metrics</h3>
                         <Badge variant="outline" className="ml-auto">
                           {metricsByType.overlapping.length} shared
                         </Badge>
