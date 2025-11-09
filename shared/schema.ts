@@ -120,6 +120,39 @@ export const budgetAllocations = pgTable("budget_allocations", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const categories = pgTable("categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  icon: text("icon"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const categoryMetrics = pgTable("category_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  categoryId: varchar("category_id").notNull().references(() => categories.id),
+  name: text("name").notNull(),
+  unit: text("unit"),
+  metricType: text("metric_type").notNull(),
+  normalizationMethod: text("normalization_method"),
+  normalizationMetadata: jsonb("normalization_metadata"),
+  weight: decimal("weight", { precision: 5, scale: 2 }).default("1.0"),
+  isRecommended: boolean("is_recommended").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const projectMetrics = pgTable("project_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id),
+  metricName: text("metric_name").notNull(),
+  value: text("value").notNull(),
+  normalizedScore: decimal("normalized_score", { precision: 5, scale: 2 }),
+  unit: text("unit"),
+  source: text("source"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -157,6 +190,21 @@ export const insertCommentSchema = createInsertSchema(comments).omit({
   createdAt: true,
 });
 
+export const insertCategorySchema = createInsertSchema(categories).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertCategoryMetricSchema = createInsertSchema(categoryMetrics).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertProjectMetricSchema = createInsertSchema(projectMetrics).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -175,3 +223,9 @@ export type Comment = typeof comments.$inferSelect;
 export type QRCodeScan = typeof qrCodeScans.$inferSelect;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type BudgetAllocation = typeof budgetAllocations.$inferSelect;
+export type InsertCategory = z.infer<typeof insertCategorySchema>;
+export type Category = typeof categories.$inferSelect;
+export type InsertCategoryMetric = z.infer<typeof insertCategoryMetricSchema>;
+export type CategoryMetric = typeof categoryMetrics.$inferSelect;
+export type InsertProjectMetric = z.infer<typeof insertProjectMetricSchema>;
+export type ProjectMetric = typeof projectMetrics.$inferSelect;
