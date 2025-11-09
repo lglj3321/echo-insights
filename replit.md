@@ -38,7 +38,7 @@ Preferred communication style: Simple, everyday language.
 
 **Session Management**: Designed to use connect-pg-simple for PostgreSQL-backed sessions (infrastructure ready, implementation pending).
 
-**API Design**: RESTful API structure with routes prefixed with `/api` - separation of concerns between application routes and static asset serving.
+**API Design**: RESTful API structure with routes prefixed with `/api` - separation of concerns between application routes and static asset serving. Comprehensive REST endpoints implemented for projects, categories, metrics, team members, goals, surveys, and QR code tracking with proper Zod validation.
 
 ### Data Storage
 
@@ -49,11 +49,15 @@ Preferred communication style: Simple, everyday language.
 **Database Schema**:
 - Users table with company information and notification preferences
 - Projects table with sustainability metrics (CO2 saved, water saved, ROI, costs)
+- Categories table for project types (Packaging, Energy, Sourcing, Waste, Water, Logistics)
+- Category Metrics table for metric definitions with normalization metadata and weights
+- Project Metrics table for storing custom metric values per project (normalized catalog + value design)
 - Survey questions and responses for consumer feedback collection
 - QR code scan tracking for survey engagement analytics
 - Goals and team members for collaborative project management
+- Comments and activity logs for project collaboration
 
-**Storage Interface**: Abstracted storage layer (`storage.ts`) provides a repository pattern for database operations - enables easy testing and potential database switching.
+**Storage Interface**: Abstracted storage layer (`storage.ts`) provides a repository pattern for database operations with full CRUD support for all entities - enables easy testing and potential database switching. Currently uses in-memory storage (MemStorage) for development with proper optional field preservation.
 
 ### Key Architectural Patterns
 
@@ -125,6 +129,20 @@ Preferred communication style: Simple, everyday language.
 ## Recent Changes
 
 ### November 2025
+- **Backend Implementation Complete**: Built comprehensive backend with normalized database schema, full CRUD API routes, and storage layer
+  - **Database Schema**: Added categories, category_metrics, and project_metrics tables using normalized catalog + value design for flexible metrics system
+  - **Storage Layer**: Implemented complete IStorage interface with CRUD operations for all entities (projects, categories, metrics, goals, team members, surveys, QR scans). Fixed critical bug to preserve optional fields (actualCost, status, assignedTo, waterSaved) when creating projects
+  - **API Routes**: Built comprehensive REST endpoints for all entities with proper Zod validation and error handling:
+    - Projects: GET/POST/PATCH/DELETE /api/projects
+    - Project Metrics: GET/POST/PATCH/DELETE /api/projects/:projectId/metrics
+    - Categories: GET/POST /api/categories, GET /api/categories/:id
+    - Category Metrics: GET /api/categories/:categoryId/metrics, POST /api/category-metrics
+    - Goals: GET/POST/PATCH/DELETE /api/goals
+    - Team Members: GET/POST/PATCH/DELETE /api/team-members
+    - QR Scans: POST /api/projects/:projectId/qr-scan, GET /api/projects/:projectId/qr-scans
+    - Survey Responses: POST /api/survey-responses, GET /api/projects/:projectId/survey-responses
+  - **Database Migration**: Successfully ran migrations to create all tables in PostgreSQL
+  - **Testing**: Verified API endpoints work correctly with proper field preservation and round-tripping
 - **Dashboard Streamlining**: Removed redundant "New Project" button from Dashboard page (project creation only available from Projects page)
 - **Unified Metrics Dialog**: Combined AI-recommended, user-entered, and file-extracted metrics into single selection interface during project creation
 - **Comparison Page Organization**: Reorganized metrics comparison to show overlapping metrics in unified table first, followed by project-specific unique metrics in separate cards
