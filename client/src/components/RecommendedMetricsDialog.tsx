@@ -40,6 +40,8 @@ interface RecommendedMetricsDialogProps {
   onOpenChange: (open: boolean) => void;
   projectDescription: string;
   customMetrics?: CustomMetric[];
+  apiDetectedCategory?: string | null;
+  classificationConfidence?: number;
   onSubmit: (selectedAIMetrics: RecommendedMetric[], selectedCustomMetrics: CustomMetric[]) => void;
 }
 
@@ -120,9 +122,13 @@ export function RecommendedMetricsDialog({
   onOpenChange,
   projectDescription,
   customMetrics = [],
+  apiDetectedCategory,
+  classificationConfidence = 0,
   onSubmit,
 }: RecommendedMetricsDialogProps) {
-  const detectedCategory = categorizeFromDescription(projectDescription);
+  // Use API-detected category if available, otherwise fall back to keyword-based
+  const fallbackCategory = categorizeFromDescription(projectDescription);
+  const detectedCategory = apiDetectedCategory || fallbackCategory;
   
   // Track selected category (can be overridden by user)
   const [selectedCategory, setSelectedCategory] = useState<string>(detectedCategory);

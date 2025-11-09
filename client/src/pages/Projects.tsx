@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
@@ -54,6 +54,9 @@ export default function Projects() {
   const [similarProjects, setSimilarProjects] = useState<any[]>([]);
   const [suggestedCategory, setSuggestedCategory] =
     useState<string>("Packaging");
+  const [isClassifying, setIsClassifying] = useState(false);
+  const [detectedCategory, setDetectedCategory] = useState<string | null>(null);
+  const [classificationConfidence, setClassificationConfidence] = useState<number>(0);
 
   // TODO: Remove mock data - replace with actual API data
   const mockProjects: Project[] = [
@@ -205,33 +208,72 @@ export default function Projects() {
     setPendingProjectData(data);
     setIsCreateDialogOpen(false);
 
-    // Prepare all custom metrics (user-entered + file-extracted)
-    const userMetrics: {
-      name: string;
-      value: string;
-      source: "user" | "file";
-    }[] = (data.metrics || []).map((m: any) => ({
-      name: m.name,
-      value: m.value,
-      source: "user" as const,
-    }));
+    try {
+      // Show classifying state
+      setIsClassifying(true);
 
-    // Extract file metrics if file uploaded
-    let allCustomMetrics = [...userMetrics];
-    if (data.uploadedFile) {
-      const fileMetrics = await extractMetricsFromFile(data.uploadedFile);
-      allCustomMetrics = [
-        ...allCustomMetrics,
-        ...fileMetrics.map((m) => ({ ...m, source: "file" as const })),
-      ];
+      // Prepare all custom metrics (user-entered + file-extracted)
+      const userMetrics: {
+        name: string;
+        value: string;
+        source: "user" | "file";
+      }[] = (data.metrics || []).map((m: any) => ({
+        name: m.name,
+        value: m.value,
+        source: "user" as const,
+      }));
+
+      // Extract file metrics if file uploaded
+      let allCustomMetrics = [...userMetrics];
+      let fileMetrics: any[] = [];
+      if (data.uploadedFile) {
+        fileMetrics = await extractMetricsFromFile(data.uploadedFile);
+        allCustomMetrics = [
+          ...allCustomMetrics,
+          ...fileMetrics.map((m) => ({ ...m, source: "file" as const })),
+        ];
+      }
+
+      setPendingCustomMetrics(allCustomMetrics);
+
+      // Call classification API
+      const classificationResponse = await fetch("/api/classify-project", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: data.description,
+          customMetrics: userMetrics,
+          csvData: fileMetrics,
+        }),
+      });
+
+      if (classificationResponse.ok) {
+        const result = await classificationResponse.json();
+        setDetectedCategory(result.category);
+        setClassificationConfidence(result.confidence);
+      } else {
+        // Fallback to keyword-based detection in the dialog
+        setDetectedCategory(null);
+        setClassificationConfidence(0);
+      }
+    } catch (error) {
+      console.error("Classification error:", error);
+      toast({
+        title: "Classification Error",
+        description: "Using keyword-based detection. You can change it manually.",
+        variant: "destructive",
+      });
+      // Fallback to keyword-based detection in the dialog
+      setDetectedCategory(null);
+      setClassificationConfidence(0);
+    } finally {
+      setIsClassifying(false);
+      
+      // Show unified metrics dialog with both AI and custom metrics
+      setTimeout(() => {
+        setIsRecommendedMetricsDialogOpen(true);
+      }, 100);
     }
-
-    setPendingCustomMetrics(allCustomMetrics);
-
-    // Show unified metrics dialog with both AI and custom metrics
-    setTimeout(() => {
-      setIsRecommendedMetricsDialogOpen(true);
-    }, 100);
   };
 
   const handleRecommendedMetricsSubmit = async (
@@ -648,8 +690,27 @@ export default function Projects() {
         onOpenChange={setIsRecommendedMetricsDialogOpen}
         projectDescription={pendingProjectData?.description || ""}
         customMetrics={pendingCustomMetrics}
+        apiDetectedCategory={detectedCategory}
+        classificationConfidence={classificationConfidence}
         onSubmit={handleRecommendedMetricsSubmit}
       />
+
+      {/* Loading Dialog for Classification */}
+      <Dialog open={isClassifying}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5 animate-spin text-primary" />
+              Analyzing Project
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-6 text-center">
+            <p className="text-muted-foreground">
+              AI is analyzing your project description, metrics, and uploaded files to suggest the best category...
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <SimilarProjectsDialog
         open={isSimilarProjectsDialogOpen}

@@ -154,3 +154,11 @@ Preferred communication style: Simple, everyday language.
 - **Project Details Bug Fix**: Fixed issue where clicking "View Details" on any project always displayed "100% Recycled Packaging Initiative". Now correctly displays the selected project's details by looking up project data based on the URL ID parameter.
 - **Teams Page Edit Dropdown**: Implemented functional Edit button in Team Members Actions column with dropdown menu for role management (Admin, Manager, Viewer) and member removal. Role changes and deletions update the UI reactively with state management and show toast confirmations.
 - **Settings Page Cleanup**: Removed "Survey Settings" section with Base Survey URL field from Company tab in Settings page, as the feature was not needed.
+- **AI-Powered Project Classification**: Implemented smart backend classification system that analyzes project description, custom metrics, and uploaded CSV file data when "Create Project" button is clicked
+  - **Backend Endpoint**: Created `/api/classify-project` endpoint that uses enhanced keyword-based analysis (prepares for OpenAI integration)
+  - **Real CSV Parsing**: Replaced mock file extraction with actual PapaParse implementation that reads CSV column headers and values as metrics
+  - **Loading State**: Added "Analyzing Project" loading dialog with spinner while classification API processes the data
+  - **API-Detected Categories**: Metrics dialog now receives and displays the backend-detected category with confidence score
+  - **"Other" Category Option**: Added "Other" to category dropdown for projects that don't fit standard categories (shows no AI-recommended metrics)
+  - **Go Back Button**: Added "Go Back" button to metrics dialog allowing users to return to project form without losing work
+  - **Fallback Logic**: System gracefully handles classification errors with toast notifications and defaults to "Packaging" category

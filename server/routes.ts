@@ -125,6 +125,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Project Classification API
+  app.post("/api/classify-project", async (req, res) => {
+    try {
+      const { description, customMetrics, csvData } = req.body;
+
+      if (!description) {
+        return res.status(400).json({ error: "description is required" });
+      }
+
+      // Prepare all text for analysis
+      const desc = description.toLowerCase();
+      const metricNames = (customMetrics || [])
+        .map((m: any) => m.name.toLowerCase())
+        .join(" ");
+      const csvHeaders = (csvData || [])
+        .map((m: any) => m.name.toLowerCase())
+        .join(" ");
+      const allText = `${desc} ${metricNames} ${csvHeaders}`;
+
+      // Enhanced keyword-based classification
+      // TODO: Replace with OpenAI classification once integration is confirmed
+      const categoryScores: Record<string, number> = {
+        Packaging: 0,
+        Energy: 0,
+        Sourcing: 0,
+        Waste: 0,
+        Water: 0,
+      };
+
+      const keywords: Record<string, string[]> = {
+        Packaging: [
+          "packaging", "package", "container", "wrap", "box", "bottle",
+          "recyclable", "biodegradable", "plastic", "material", "compostable"
+        ],
+        Energy: [
+          "energy", "solar", "renewable", "power", "electricity", "kwh",
+          "efficiency", "consumption", "carbon", "emission", "co2", "fuel"
+        ],
+        Sourcing: [
+          "sourcing", "supplier", "local", "supply chain", "procurement",
+          "ingredients", "materials", "fair trade", "organic", "sustainable"
+        ],
+        Waste: [
+          "waste", "recycling", "compost", "landfill", "disposal",
+          "zero waste", "diversion", "reduction", "trash"
+        ],
+        Water: [
+          "water", "conservation", "recycling", "wastewater", "consumption",
+          "gallons", "rainwater", "aquifer", "irrigation"
+        ],
+      };
+
+      // Score each category
+      Object.entries(keywords).forEach(([category, words]) => {
+        words.forEach((keyword) => {
+          if (allText.includes(keyword)) {
+            categoryScores[category] += 1;
+          }
+        });
+      });
+
+      // Find top category
+      const sortedCategories = Object.entries(categoryScores).sort(
+        ([, a], [, b]) => b - a
+      );
+
+      const topCategory = sortedCategories[0];
+      const totalKeywords = Object.values(categoryScores).reduce((a, b) => a + b, 0);
+      
+      // Calculate confidence score (0-1)
+      const confidence = totalKeywords > 0 
+        ? topCategory[1] / totalKeywords 
+        : 0;
+
+      res.json({
+        category: topCategory[1] > 0 ? topCategory[0] : "Other",
+        confidence: Math.round(confidence * 100) / 100,
+        method: "keyword-based", // Will be "ai" once OpenAI is integrated
+      });
+    } catch (error) {
+      console.error("Classification error:", error);
+      res.status(500).json({ error: "Failed to classify project" });
+    }
+  });
+
   // Goals API
   app.get("/api/goals", async (req, res) => {
     try {
