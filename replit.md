@@ -42,7 +42,8 @@ Preferred communication style: Simple, everyday language.
 **Dual Navigation Paradigm**: Company dashboards use persistent sidebar navigation; consumer surveys have minimal header-only navigation for mobile focus.
 **Impact Scoring System**: Complex metric normalization and weighting for project comparison.
 **QR Code Survey Distribution**: Unique QR codes link to mobile-optimized surveys for consumer feedback.
-**AI-Powered Project Classification**: Integration with OpenAI GPT-5 for intelligent categorization of projects based on description, custom metrics, and file content (PDF, Excel, Word, CSV parsing). This includes smart prompting, multi-format file support, and robust fallbacks.
+**AI-Powered Project Classification**: Integration with OpenAI GPT-5 for intelligent categorization of projects based on description, custom metrics, and file content (CSV and Excel parsing). This includes smart prompting, multi-format file support, and robust fallbacks.
+**Vertical Metric Extraction**: CSV and Excel files are parsed vertically with first column as metric names, keyword-based detection for "value" and "unit" columns, and automatic delimiter detection for CSVs (supports comma, semicolon, tab, pipe).
 **Unified Metrics Selection**: Project creation dialog combines AI-recommended, user-entered, and file-extracted metrics.
 **Manual Category Override**: Users can manually select project categories, updating metric recommendations while preserving custom metrics.
 **Organized Comparison View**: Project comparison page separates "Overlapping Metrics" and "Unique Metrics."
@@ -79,7 +80,5 @@ Preferred communication style: Simple, everyday language.
 - OpenAI GPT-5 (via Replit AI Integrations service).
 
 **File Parsing**:
-- `pdf-parse`: PDF text extraction.
-- `xlsx`: Excel file parsing.
-- `mammoth`: Word document text extraction.
-- `papaparse`: CSV parsing.
+- `xlsx`: Excel file parsing (vertical metric extraction).
+- `papaparse`: CSV parsing with auto-delimiter detection (vertical metric extraction).
