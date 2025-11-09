@@ -364,8 +364,9 @@ export class MemStorage implements IStorage {
   }
 
   async deleteProjectMetric(id: string): Promise<boolean> {
-    for (const [projectId, metrics] of this.projectMetrics.entries()) {
-      const index = metrics.findIndex(m => m.id === id);
+    const entries = Array.from(this.projectMetrics.entries());
+    for (const [projectId, metrics] of entries) {
+      const index = metrics.findIndex((m: ProjectMetric) => m.id === id);
       if (index !== -1) {
         metrics.splice(index, 1);
         this.projectMetrics.set(projectId, metrics);
@@ -376,11 +377,12 @@ export class MemStorage implements IStorage {
   }
 
   async updateProjectMetric(id: string, updates: Partial<ProjectMetric>): Promise<ProjectMetric | undefined> {
-    for (const [projectId, metrics] of this.projectMetrics.entries()) {
-      const metric = metrics.find(m => m.id === id);
+    const entries = Array.from(this.projectMetrics.entries());
+    for (const [projectId, metrics] of entries) {
+      const metric = metrics.find((m: ProjectMetric) => m.id === id);
       if (metric) {
         const updated = { ...metric, ...updates };
-        const index = metrics.findIndex(m => m.id === id);
+        const index = metrics.findIndex((m: ProjectMetric) => m.id === id);
         metrics[index] = updated;
         this.projectMetrics.set(projectId, metrics);
         return updated;
