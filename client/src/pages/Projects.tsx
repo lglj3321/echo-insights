@@ -551,6 +551,9 @@ export default function Projects() {
     projectData: any,
     selectedMetrics: MetricItem[],
   ): string => {
+    if (!projectData || !projectData.description) {
+      return "Other";
+    }
     const description = projectData.description.toLowerCase();
     const metricNames = selectedMetrics
       .map((m) => m.metricName.toLowerCase())
