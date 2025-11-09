@@ -160,6 +160,27 @@ export default function Comparison() {
 
   const overlappingData = getOverlappingMetrics();
   const allMetrics = getAllMetricNames();
+  
+  // Separate overlapping and unique metrics
+  const getMetricsByType = () => {
+    const overlappingMetrics = overlappingData.metrics;
+    const uniqueMetricsByProject: Record<string, string[]> = {};
+    
+    selectedProjectsData.forEach(project => {
+      const projectMetrics = project.metrics.map(m => m.name);
+      const uniqueToProject = projectMetrics.filter(m => !overlappingMetrics.includes(m));
+      if (uniqueToProject.length > 0) {
+        uniqueMetricsByProject[project.id] = uniqueToProject;
+      }
+    });
+    
+    return {
+      overlapping: overlappingMetrics,
+      unique: uniqueMetricsByProject,
+    };
+  };
+  
+  const metricsByType = getMetricsByType();
 
   return (
     <div className="space-y-6">
@@ -327,53 +348,161 @@ export default function Comparison() {
                     Side-by-side comparison of all metrics across selected projects
                   </p>
                 </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left p-4 font-semibold min-w-[200px]">Metric</th>
-                          {selectedProjectsData.map((project) => (
-                            <th key={project.id} className="text-center p-4 font-semibold min-w-[180px]">
+                <CardContent className="space-y-8">
+                  {/* Overlapping Metrics Section */}
+                  {metricsByType.overlapping.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-4">
+                        <CheckCircle2 className="h-5 w-5 text-primary" />
+                        <h3 className="text-lg font-semibold">Overlapping Metrics</h3>
+                        <Badge variant="outline" className="ml-auto">
+                          {metricsByType.overlapping.length} shared
+                        </Badge>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-left p-4 font-semibold min-w-[200px]">Metric</th>
+                              {selectedProjectsData.map((project) => (
+                                <th key={project.id} className="text-center p-4 font-semibold min-w-[180px]">
+                                  <div className="space-y-1">
+                                    <p className="text-sm">{project.title}</p>
+                                    <Badge variant="outline" className="text-xs">
+                                      {project.category}
+                                    </Badge>
+                                  </div>
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {metricsByType.overlapping.map((metricName, idx) => (
+                              <tr key={idx} className="border-b hover-elevate">
+                                <td className="p-4 font-medium">{metricName}</td>
+                                {selectedProjectsData.map((project) => {
+                                  const metric = getMetricValue(project, metricName);
+                                  return (
+                                    <td key={project.id} className="p-4 text-center">
+                                      {metric ? (
+                                        <div className="space-y-2">
+                                          <p className="text-sm font-mono">{metric.value}</p>
+                                          <div className="flex items-center justify-center gap-2">
+                                            <Progress value={metric.normalizedScore} className="h-1.5 flex-1" />
+                                            <span className={`text-xs font-bold font-mono ${getScoreColor(metric.normalizedScore)}`}>
+                                              {metric.normalizedScore}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <span className="text-muted-foreground text-sm">—</span>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Unique Metrics Section */}
+                  {Object.keys(metricsByType.unique).length > 0 && (
+                    <div>
+                      <Separator className="mb-6" />
+                      <div className="flex items-center gap-2 mb-4">
+                        <Award className="h-5 w-5 text-chart-3" />
+                        <h3 className="text-lg font-semibold">Unique Metrics</h3>
+                        <Badge variant="outline" className="ml-auto">
+                          {Object.values(metricsByType.unique).reduce((sum, metrics) => sum + metrics.length, 0)} total
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {selectedProjectsData.map((project) => {
+                          const uniqueMetrics = metricsByType.unique[project.id] || [];
+                          if (uniqueMetrics.length === 0) return null;
+                          
+                          return (
+                            <div key={project.id} className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="font-semibold">{project.title}</p>
+                                  <Badge variant="secondary" className="text-xs mt-1">
+                                    {project.category}
+                                  </Badge>
+                                </div>
+                                <Badge variant="outline">
+                                  {uniqueMetrics.length}
+                                </Badge>
+                              </div>
+                              <div className="space-y-2 border rounded-lg p-4">
+                                {uniqueMetrics.map((metricName, idx) => {
+                                  const metric = getMetricValue(project, metricName);
+                                  return (
+                                    <div key={idx} className="space-y-2 pb-3 last:pb-0 border-b last:border-0">
+                                      <p className="text-sm font-medium">{metricName}</p>
+                                      {metric && (
+                                        <>
+                                          <p className="text-sm font-mono text-muted-foreground">{metric.value}</p>
+                                          <div className="flex items-center gap-2">
+                                            <Progress value={metric.normalizedScore} className="h-1.5 flex-1" />
+                                            <span className={`text-xs font-bold font-mono ${getScoreColor(metric.normalizedScore)}`}>
+                                              {metric.normalizedScore}
+                                            </span>
+                                          </div>
+                                        </>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Show all metrics if only one project selected */}
+                  {selectedProjectsData.length === 1 && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left p-4 font-semibold min-w-[200px]">Metric</th>
+                            <th className="text-center p-4 font-semibold min-w-[180px]">
                               <div className="space-y-1">
-                                <p className="text-sm">{project.title}</p>
+                                <p className="text-sm">{selectedProjectsData[0].title}</p>
                                 <Badge variant="outline" className="text-xs">
-                                  {project.category}
+                                  {selectedProjectsData[0].category}
                                 </Badge>
                               </div>
                             </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {allMetrics.map((metricName, idx) => (
-                          <tr key={idx} className="border-b hover-elevate">
-                            <td className="p-4 font-medium">{metricName}</td>
-                            {selectedProjectsData.map((project) => {
-                              const metric = getMetricValue(project, metricName);
-                              return (
-                                <td key={project.id} className="p-4 text-center">
-                                  {metric ? (
-                                    <div className="space-y-2">
-                                      <p className="text-sm font-mono">{metric.value}</p>
-                                      <div className="flex items-center justify-center gap-2">
-                                        <Progress value={metric.normalizedScore} className="h-1.5 flex-1" />
-                                        <span className={`text-xs font-bold font-mono ${getScoreColor(metric.normalizedScore)}`}>
-                                          {metric.normalizedScore}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <span className="text-muted-foreground text-sm">—</span>
-                                  )}
-                                </td>
-                              );
-                            })}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {selectedProjectsData[0].metrics.map((metric, idx) => (
+                            <tr key={idx} className="border-b hover-elevate">
+                              <td className="p-4 font-medium">{metric.name}</td>
+                              <td className="p-4 text-center">
+                                <div className="space-y-2">
+                                  <p className="text-sm font-mono">{metric.value}</p>
+                                  <div className="flex items-center justify-center gap-2">
+                                    <Progress value={metric.normalizedScore} className="h-1.5 flex-1" />
+                                    <span className={`text-xs font-bold font-mono ${getScoreColor(metric.normalizedScore)}`}>
+                                      {metric.normalizedScore}
+                                    </span>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </>

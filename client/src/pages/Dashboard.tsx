@@ -4,8 +4,6 @@ import { ImpactCostMatrix } from "@/components/ImpactCostMatrix";
 import { ProjectTypeChart } from "@/components/ProjectTypeChart";
 import { FeedbackTrendChart } from "@/components/FeedbackTrendChart";
 import { FolderKanban, Users, TrendingUp, Leaf } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
 
 export default function Dashboard() {
   // TODO: Remove mock data - replace with actual API data
@@ -65,17 +63,11 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-4xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
-            Overview of your sustainability projects and consumer feedback
-          </p>
-        </div>
-        <Button data-testid="button-create-project">
-          <Plus className="h-4 w-4 mr-2" />
-          New Project
-        </Button>
+      <div>
+        <h1 className="text-4xl font-bold">Dashboard</h1>
+        <p className="text-muted-foreground mt-1">
+          Overview of your sustainability projects and consumer feedback
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
