@@ -75,11 +75,21 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
+  
+  // 使用标准listen方法（移除reusePort选项，因为macOS不支持）
+  // 使用localhost而不是0.0.0.0，避免某些系统上的问题
+  server.listen(port, 'localhost', () => {
     log(`serving on port ${port}`);
+  }).on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE' || err.code === 'ENOTSUP') {
+      log(`Port ${port} is not available (${err.code})`);
+      log(`Please use a different port by setting PORT environment variable:`);
+      log(`  PORT=3000 npm run dev`);
+      log(`Or free up port ${port} and try again.`);
+      process.exit(1);
+    } else {
+      log(`Failed to start server: ${err.message}`);
+      throw err;
+    }
   });
 })();

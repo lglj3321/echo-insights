@@ -1,16 +1,14 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, getQueryFn } from "@/lib/queryClient";
 
 export function useAuth() {
   const [, navigate] = useLocation();
   const { data: user, isLoading, error } = useQuery({
     queryKey: ["/api/auth/user"],
     retry: false,
-    // 401错误时返回null而不是抛出错误
-    throwOnError: (err: any) => {
-      return err?.status !== 401;
-    },
+    // 使用自定义queryFn，让401错误返回null而不是抛出
+    queryFn: getQueryFn({ on401: "returnNull" }),
   });
 
   const logoutMutation = useMutation({

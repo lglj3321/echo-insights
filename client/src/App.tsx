@@ -121,7 +121,7 @@ function Router() {
   );
 }
 
-function App() {
+function AppContent() {
   const [location] = useLocation();
   const { isAuthenticated } = useAuth();
   const style = {
@@ -132,36 +132,40 @@ function App() {
   // 登录页面不显示侧边栏
   if (location === "/login") {
     return (
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Router />
-          <Toaster />
-        </TooltipProvider>
-      </QueryClientProvider>
+      <TooltipProvider>
+        <Router />
+        <Toaster />
+      </TooltipProvider>
     );
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <SidebarProvider style={style as React.CSSProperties}>
-          <div className="flex h-screen w-full">
-            {isAuthenticated && <AppSidebar />}
-            <div className="flex flex-col flex-1 overflow-hidden">
-              {isAuthenticated && (
-                <header className="flex items-center gap-4 p-4 border-b bg-card">
-                  <SidebarTrigger data-testid="button-sidebar-toggle" />
-                  <div className="flex-1" />
-                </header>
-              )}
-              <main className="flex-1 overflow-auto p-6">
-                <Router />
-              </main>
-            </div>
+    <TooltipProvider>
+      <SidebarProvider style={style as React.CSSProperties}>
+        <div className="flex h-screen w-full">
+          {isAuthenticated && <AppSidebar />}
+          <div className="flex flex-col flex-1 overflow-hidden">
+            {isAuthenticated && (
+              <header className="flex items-center gap-4 p-4 border-b bg-card">
+                <SidebarTrigger data-testid="button-sidebar-toggle" />
+                <div className="flex-1" />
+              </header>
+            )}
+            <main className="flex-1 overflow-auto p-6">
+              <Router />
+            </main>
           </div>
-        </SidebarProvider>
-        <Toaster />
-      </TooltipProvider>
+        </div>
+      </SidebarProvider>
+      <Toaster />
+    </TooltipProvider>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AppContent />
     </QueryClientProvider>
   );
 }

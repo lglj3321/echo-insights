@@ -398,24 +398,33 @@ import * as schema from "@shared/schema";
 import { eq, and, sql as drizzleSql } from "drizzle-orm";
 
 export class DatabaseStorage implements IStorage {
+  private dbInstance: NonNullable<typeof db>;
+
+  constructor() {
+    if (!db) {
+      throw new Error("Database not initialized. DATABASE_URL must be set.");
+    }
+    this.dbInstance = db;
+  }
+
   // Users
   async getUser(id: string): Promise<User | undefined> {
-    const result = await db.select().from(schema.users).where(eq(schema.users.id, id)).limit(1);
+    const result = await this.dbInstance.select().from(schema.users).where(eq(schema.users.id, id)).limit(1);
     return result[0];
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const result = await db.select().from(schema.users).where(eq(schema.users.username, username)).limit(1);
+    const result = await this.dbInstance.select().from(schema.users).where(eq(schema.users.username, username)).limit(1);
     return result[0];
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const result = await db.insert(schema.users).values(insertUser).returning();
+    const result = await this.dbInstance.insert(schema.users).values(insertUser).returning();
     return result[0];
   }
 
   async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
-    const result = await db.update(schema.users)
+    const result = await this.dbInstance.update(schema.users)
       .set(updates)
       .where(eq(schema.users.id, id))
       .returning();
@@ -424,21 +433,21 @@ export class DatabaseStorage implements IStorage {
 
   // Projects
   async getProjects(userId: string): Promise<Project[]> {
-    return await db.select().from(schema.projects).where(eq(schema.projects.userId, userId));
+    return await this.dbInstance.select().from(schema.projects).where(eq(schema.projects.userId, userId));
   }
 
   async getProject(id: string): Promise<Project | undefined> {
-    const result = await db.select().from(schema.projects).where(eq(schema.projects.id, id)).limit(1);
+    const result = await this.dbInstance.select().from(schema.projects).where(eq(schema.projects.id, id)).limit(1);
     return result[0];
   }
 
   async createProject(insertProject: InsertProject): Promise<Project> {
-    const result = await db.insert(schema.projects).values(insertProject).returning();
+    const result = await this.dbInstance.insert(schema.projects).values(insertProject).returning();
     return result[0];
   }
 
   async updateProject(id: string, updates: Partial<Project>): Promise<Project | undefined> {
-    const result = await db.update(schema.projects)
+    const result = await this.dbInstance.update(schema.projects)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(schema.projects.id, id))
       .returning();
@@ -446,27 +455,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteProject(id: string): Promise<boolean> {
-    const result = await db.delete(schema.projects).where(eq(schema.projects.id, id)).returning();
+    const result = await this.dbInstance.delete(schema.projects).where(eq(schema.projects.id, id)).returning();
     return result.length > 0;
   }
 
   // Goals
   async getGoals(userId: string): Promise<Goal[]> {
-    return await db.select().from(schema.goals).where(eq(schema.goals.userId, userId));
+    return await this.dbInstance.select().from(schema.goals).where(eq(schema.goals.userId, userId));
   }
 
   async getGoal(id: string): Promise<Goal | undefined> {
-    const result = await db.select().from(schema.goals).where(eq(schema.goals.id, id)).limit(1);
+    const result = await this.dbInstance.select().from(schema.goals).where(eq(schema.goals.id, id)).limit(1);
     return result[0];
   }
 
   async createGoal(insertGoal: InsertGoal): Promise<Goal> {
-    const result = await db.insert(schema.goals).values(insertGoal).returning();
+    const result = await this.dbInstance.insert(schema.goals).values(insertGoal).returning();
     return result[0];
   }
 
   async updateGoal(id: string, updates: Partial<Goal>): Promise<Goal | undefined> {
-    const result = await db.update(schema.goals)
+    const result = await this.dbInstance.update(schema.goals)
       .set(updates)
       .where(eq(schema.goals.id, id))
       .returning();
@@ -474,22 +483,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteGoal(id: string): Promise<boolean> {
-    const result = await db.delete(schema.goals).where(eq(schema.goals.id, id)).returning();
+    const result = await this.dbInstance.delete(schema.goals).where(eq(schema.goals.id, id)).returning();
     return result.length > 0;
   }
 
   // Team Members
   async getTeamMembers(userId: string): Promise<TeamMember[]> {
-    return await db.select().from(schema.teamMembers).where(eq(schema.teamMembers.userId, userId));
+    return await this.dbInstance.select().from(schema.teamMembers).where(eq(schema.teamMembers.userId, userId));
   }
 
   async createTeamMember(insertMember: InsertTeamMember): Promise<TeamMember> {
-    const result = await db.insert(schema.teamMembers).values(insertMember).returning();
+    const result = await this.dbInstance.insert(schema.teamMembers).values(insertMember).returning();
     return result[0];
   }
 
   async updateTeamMember(id: string, updates: Partial<TeamMember>): Promise<TeamMember | undefined> {
-    const result = await db.update(schema.teamMembers)
+    const result = await this.dbInstance.update(schema.teamMembers)
       .set(updates)
       .where(eq(schema.teamMembers.id, id))
       .returning();
@@ -497,18 +506,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteTeamMember(id: string): Promise<boolean> {
-    const result = await db.delete(schema.teamMembers).where(eq(schema.teamMembers.id, id)).returning();
+    const result = await this.dbInstance.delete(schema.teamMembers).where(eq(schema.teamMembers.id, id)).returning();
     return result.length > 0;
   }
 
   // QR Code Scans
   async recordQRScan(projectId: string): Promise<QRCodeScan> {
-    const result = await db.insert(schema.qrCodeScans).values({ projectId }).returning();
+    const result = await this.dbInstance.insert(schema.qrCodeScans).values({ projectId }).returning();
     return result[0];
   }
 
   async getQRScans(projectId: string): Promise<number> {
-    const result = await db.select({ count: drizzleSql<number>`count(*)::int` })
+    const result = await this.dbInstance.select({ count: drizzleSql<number>`count(*)::int` })
       .from(schema.qrCodeScans)
       .where(eq(schema.qrCodeScans.projectId, projectId));
     return result[0]?.count || 0;
@@ -516,16 +525,16 @@ export class DatabaseStorage implements IStorage {
 
   // Survey Responses
   async createSurveyResponse(insertResponse: InsertSurveyResponse): Promise<SurveyResponse> {
-    const result = await db.insert(schema.surveyResponses).values(insertResponse).returning();
+    const result = await this.dbInstance.insert(schema.surveyResponses).values(insertResponse).returning();
     return result[0];
   }
 
   async getSurveyResponses(projectId: string): Promise<SurveyResponse[]> {
-    return await db.select().from(schema.surveyResponses).where(eq(schema.surveyResponses.projectId, projectId));
+    return await this.dbInstance.select().from(schema.surveyResponses).where(eq(schema.surveyResponses.projectId, projectId));
   }
 
   async getProjectFeedbackScore(projectId: string): Promise<{ score: number; count: number }> {
-    const result = await db.select({
+    const result = await this.dbInstance.select({
       avg: drizzleSql<number>`COALESCE(AVG(rating), 0)`,
       count: drizzleSql<number>`count(*)::int`
     })
@@ -540,26 +549,26 @@ export class DatabaseStorage implements IStorage {
 
   // Categories
   async getCategories(): Promise<Category[]> {
-    return await db.select().from(schema.categories);
+    return await this.dbInstance.select().from(schema.categories);
   }
 
   async getCategory(id: string): Promise<Category | undefined> {
-    const result = await db.select().from(schema.categories).where(eq(schema.categories.id, id)).limit(1);
+    const result = await this.dbInstance.select().from(schema.categories).where(eq(schema.categories.id, id)).limit(1);
     return result[0];
   }
 
   async createCategory(insertCategory: InsertCategory): Promise<Category> {
-    const result = await db.insert(schema.categories).values(insertCategory).returning();
+    const result = await this.dbInstance.insert(schema.categories).values(insertCategory).returning();
     return result[0];
   }
 
   // Category Metrics
   async getCategoryMetrics(categoryId: string): Promise<CategoryMetric[]> {
-    return await db.select().from(schema.categoryMetrics).where(eq(schema.categoryMetrics.categoryId, categoryId));
+    return await this.dbInstance.select().from(schema.categoryMetrics).where(eq(schema.categoryMetrics.categoryId, categoryId));
   }
 
   async getRecommendedMetrics(categoryId: string): Promise<CategoryMetric[]> {
-    return await db.select().from(schema.categoryMetrics)
+    return await this.dbInstance.select().from(schema.categoryMetrics)
       .where(and(
         eq(schema.categoryMetrics.categoryId, categoryId),
         eq(schema.categoryMetrics.isRecommended, true)
@@ -567,27 +576,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createCategoryMetric(insertMetric: InsertCategoryMetric): Promise<CategoryMetric> {
-    const result = await db.insert(schema.categoryMetrics).values(insertMetric).returning();
+    const result = await this.dbInstance.insert(schema.categoryMetrics).values(insertMetric).returning();
     return result[0];
   }
 
   // Project Metrics
   async getProjectMetrics(projectId: string): Promise<ProjectMetric[]> {
-    return await db.select().from(schema.projectMetrics).where(eq(schema.projectMetrics.projectId, projectId));
+    return await this.dbInstance.select().from(schema.projectMetrics).where(eq(schema.projectMetrics.projectId, projectId));
   }
 
   async createProjectMetric(insertMetric: InsertProjectMetric): Promise<ProjectMetric> {
-    const result = await db.insert(schema.projectMetrics).values(insertMetric).returning();
+    const result = await this.dbInstance.insert(schema.projectMetrics).values(insertMetric).returning();
     return result[0];
   }
 
   async deleteProjectMetric(id: string): Promise<boolean> {
-    const result = await db.delete(schema.projectMetrics).where(eq(schema.projectMetrics.id, id)).returning();
+    const result = await this.dbInstance.delete(schema.projectMetrics).where(eq(schema.projectMetrics.id, id)).returning();
     return result.length > 0;
   }
 
   async updateProjectMetric(id: string, updates: Partial<ProjectMetric>): Promise<ProjectMetric | undefined> {
-    const result = await db.update(schema.projectMetrics)
+    const result = await this.dbInstance.update(schema.projectMetrics)
       .set(updates)
       .where(eq(schema.projectMetrics.id, id))
       .returning();
@@ -595,4 +604,9 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+// 根据环境变量选择存储方式
+// 如果没有DATABASE_URL，使用内存存储（用于测试）
+// 如果有DATABASE_URL，使用数据库存储（生产环境）
+export const storage = process.env.DATABASE_URL 
+  ? new DatabaseStorage() 
+  : new MemStorage();
