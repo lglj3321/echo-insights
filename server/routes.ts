@@ -9,28 +9,124 @@ import {
   insertCategorySchema,
   insertCategoryMetricSchema,
   insertProjectMetricSchema,
+  insertUserSchema,
 } from "@shared/schema";
+import { registerUser, loginUser, requireAuth, optionalAuth } from "./auth";
+import { z } from "zod";
+
+// 注册请求schema
+const registerSchema = z.object({
+  username: z.string().min(3).max(50),
+  password: z.string().min(6),
+  email: z.string().email().optional(),
+});
+
+// 登录请求schema
+const loginSchema = z.object({
+  username: z.string().min(1),
+  password: z.string().min(1),
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Projects API
-  app.get("/api/auth/user", async (req, res) => {
-    res.json({
-      id: "dev-user-1",
-      email: "demo@example.com",
-      firstName: "Demo",
-      lastName: "User",
+  // 认证API
+  // 获取当前用户信息
+  app.get("/api/auth/user", optionalAuth, async (req, res) => {
+    if (req.user) {
+      const user = await storage.getUser(req.user.id);
+      if (user) {
+        return res.json({
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          fullName: user.fullName,
+          companyName: user.companyName,
+        });
+      }
+    }
+    res.status(401).json({ error: "Not authenticated" });
+  });
+
+  // 用户注册
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const validation = registerSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          error: "Validation failed",
+          details: validation.error.errors 
+        });
+      }
+
+      const { username, password, email } = validation.data;
+      const user = await registerUser(username, password, email);
+
+      // 设置session
+      req.session!.userId = user.id;
+
+      res.status(201).json({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+      });
+    } catch (error: any) {
+      if (error.message === "Username already exists") {
+        return res.status(409).json({ error: error.message });
+      }
+      console.error("Registration error:", error);
+      res.status(500).json({ error: "Failed to register user" });
+    }
+  });
+
+  // 用户登录
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const validation = loginSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          error: "Validation failed",
+          details: validation.error.errors 
+        });
+      }
+
+      const { username, password } = validation.data;
+      const user = await loginUser(username, password);
+
+      // 设置session
+      req.session!.userId = user.id;
+
+      res.json({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+      });
+    } catch (error: any) {
+      if (error.message === "Invalid username or password") {
+        return res.status(401).json({ error: error.message });
+      }
+      console.error("Login error:", error);
+      res.status(500).json({ error: "Failed to login" });
+    }
+  });
+
+  // 用户登出
+  app.post("/api/auth/logout", (req: any, res: any) => {
+    req.session?.destroy((err: any) => {
+      if (err) {
+        console.error("Logout error:", err);
+        return res.status(500).json({ error: "Failed to logout" });
+      }
+      res.clearCookie("connect.sid");
+      res.json({ message: "Logged out successfully" });
     });
   });
 
-  app.get("/api/projects", async (req, res) => {
+  app.get("/api/projects", requireAuth, async (req, res) => {
     try {
-      const userId = req.query.userId as string;
-      if (!userId) {
-        return res.status(400).json({ error: "userId is required" });
-      }
+      const userId = req.session!.userId!;
       const projects = await storage.getProjects(userId);
       res.json(projects);
     } catch (error) {
+      console.error("Error fetching projects:", error);
       res.status(500).json({ error: "Failed to fetch projects" });
     }
   });
@@ -47,15 +143,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/projects", async (req, res) => {
+  app.post("/api/projects", requireAuth, async (req, res) => {
     try {
-      const validation = insertProjectSchema.safeParse(req.body);
+      const userId = req.session!.userId!;
+      const validation = insertProjectSchema.safeParse({
+        ...req.body,
+        userId,
+      });
       if (!validation.success) {
         return res.status(400).json({ error: validation.error });
       }
       const project = await storage.createProject(validation.data);
       res.status(201).json(project);
     } catch (error) {
+      console.error("Error creating project:", error);
       res.status(500).json({ error: "Failed to create project" });
     }
   });
@@ -311,28 +412,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Goals API
-  app.get("/api/goals", async (req, res) => {
+  app.get("/api/goals", requireAuth, async (req, res) => {
     try {
-      const userId = req.query.userId as string;
-      if (!userId) {
-        return res.status(400).json({ error: "userId is required" });
-      }
+      const userId = req.session!.userId!;
       const goals = await storage.getGoals(userId);
       res.json(goals);
     } catch (error) {
+      console.error("Error fetching goals:", error);
       res.status(500).json({ error: "Failed to fetch goals" });
     }
   });
 
-  app.post("/api/goals", async (req, res) => {
+  app.post("/api/goals", requireAuth, async (req, res) => {
     try {
-      const validation = insertGoalSchema.safeParse(req.body);
+      const userId = req.session!.userId!;
+      const validation = insertGoalSchema.safeParse({
+        ...req.body,
+        userId,
+      });
       if (!validation.success) {
         return res.status(400).json({ error: validation.error });
       }
       const goal = await storage.createGoal(validation.data);
       res.status(201).json(goal);
     } catch (error) {
+      console.error("Error creating goal:", error);
       res.status(500).json({ error: "Failed to create goal" });
     }
   });
@@ -362,28 +466,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Team Members API
-  app.get("/api/team-members", async (req, res) => {
+  app.get("/api/team-members", requireAuth, async (req, res) => {
     try {
-      const userId = req.query.userId as string;
-      if (!userId) {
-        return res.status(400).json({ error: "userId is required" });
-      }
+      const userId = req.session!.userId!;
       const members = await storage.getTeamMembers(userId);
       res.json(members);
     } catch (error) {
+      console.error("Error fetching team members:", error);
       res.status(500).json({ error: "Failed to fetch team members" });
     }
   });
 
-  app.post("/api/team-members", async (req, res) => {
+  app.post("/api/team-members", requireAuth, async (req, res) => {
     try {
-      const validation = insertTeamMemberSchema.safeParse(req.body);
+      const userId = req.session!.userId!;
+      const validation = insertTeamMemberSchema.safeParse({
+        ...req.body,
+        userId,
+      });
       if (!validation.success) {
         return res.status(400).json({ error: validation.error });
       }
       const member = await storage.createTeamMember(validation.data);
       res.status(201).json(member);
     } catch (error) {
+      console.error("Error creating team member:", error);
       res.status(500).json({ error: "Failed to create team member" });
     }
   });

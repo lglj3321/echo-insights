@@ -57,13 +57,10 @@ export default function Projects() {
   const [detectedCategory, setDetectedCategory] = useState<string | null>(null);
   const [classificationConfidence, setClassificationConfidence] = useState<number>(0);
 
-  // Type guard for user
-  const typedUser = user as { id: string; email: string; name: string } | null;
-
-  // Fetch projects from API
+  // Fetch projects from API (不需要userId参数，后端从session获取)
   const { data: projects = [], isLoading: isLoadingProjects, error: projectsError } = useQuery<Project[]>({
-    queryKey: ['/api/projects', { userId: typedUser?.id }],
-    enabled: !!typedUser,
+    queryKey: ['/api/projects'],
+    enabled: !!user,
   });
 
   // Show error toast if projects fail to load (only once)

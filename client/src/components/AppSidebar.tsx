@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/useAuth";
 
 const menuItems = [
   {
@@ -66,15 +67,13 @@ const menuItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const { user, logout, isLoggingOut } = useAuth();
 
-  const user = {
-    name: "Sarah Johnson",
-    email: "sarah.johnson@company.com",
-    role: "Sustainability Director",
-  };
+  const displayName = user?.fullName || user?.username || "User";
+  const displayEmail = user?.email || "";
 
   const handleSignOut = () => {
-    window.location.href = "/api/logout";
+    logout();
   };
 
   return (
@@ -112,12 +111,14 @@ export function AppSidebar() {
                 <SidebarMenuButton className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground" data-testid="button-user-menu">
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                      {user.name.split(' ').map(n => n[0]).join('')}
+                      {displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col items-start flex-1 text-left min-w-0">
-                    <span className="text-sm font-medium truncate w-full">{user.name}</span>
-                    <span className="text-xs text-muted-foreground truncate w-full">{user.email}</span>
+                    <span className="text-sm font-medium truncate w-full">{displayName}</span>
+                    {displayEmail && (
+                      <span className="text-xs text-muted-foreground truncate w-full">{displayEmail}</span>
+                    )}
                   </div>
                   <ChevronUp className="ml-auto h-4 w-4" />
                 </SidebarMenuButton>
@@ -125,8 +126,10 @@ export function AppSidebar() {
               <DropdownMenuContent side="top" className="w-56">
                 <DropdownMenuLabel>
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium">{user.name}</p>
-                    <p className="text-xs text-muted-foreground">{user.email}</p>
+                    <p className="text-sm font-medium">{displayName}</p>
+                    {displayEmail && (
+                      <p className="text-xs text-muted-foreground">{displayEmail}</p>
+                    )}
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -137,9 +140,9 @@ export function AppSidebar() {
                   </a>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut} data-testid="button-sign-out">
+                <DropdownMenuItem onClick={handleSignOut} disabled={isLoggingOut} data-testid="button-sign-out">
                   <LogOut className="mr-2 h-4 w-4" />
-                  Sign Out
+                  {isLoggingOut ? "Signing out..." : "Sign Out"}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

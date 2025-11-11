@@ -1,8 +1,12 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { setupSession } from "./session";
 
 const app = express();
+
+// 配置 session（必须在其他中间件之前）
+setupSession(app);
 
 declare module 'http' {
   interface IncomingMessage {
