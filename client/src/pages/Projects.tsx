@@ -603,13 +603,13 @@ export default function Projects() {
   // Mutation for creating project
   const createProjectMutation = useMutation({
     mutationFn: async () => {
-      if (!typedUser) {
+      if (!user) {
         throw new Error("User not authenticated");
       }
       
       const projectPayload = {
         ...pendingProjectData,
-        userId: typedUser.id,
+        // userId 不需要传递，后端从session自动获取
         type: pendingProjectData?.type || suggestedCategory,
         customCategory: pendingProjectData?.customCategory,
         estimatedCost: String(pendingProjectData?.estimatedCost || 0),
@@ -634,8 +634,8 @@ export default function Projects() {
       return { projectId, projectTitle: projectPayload.title, metricsCount: pendingMetrics.length };
     },
     onSuccess: async ({ projectId, projectTitle, metricsCount }) => {
-      // Invalidate projects cache
-      await queryClient.invalidateQueries({ queryKey: ['/api/projects', { userId: typedUser?.id }] });
+      // Invalidate projects cache (不需要userId参数，后端从session获取)
+      await queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
       
       toast({
         title: "Project Created Successfully",
@@ -662,7 +662,7 @@ export default function Projects() {
   });
 
   const handleFinalizeProject = () => {
-    if (!typedUser) {
+    if (!user) {
       toast({
         title: "Error",
         description: "User not authenticated. Please refresh the page.",

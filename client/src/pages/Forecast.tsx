@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRoute, Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,6 +20,7 @@ import {
   Calendar,
   BarChart3,
   Sparkles,
+  Loader2,
 } from "lucide-react";
 import {
   LineChart,
@@ -32,6 +34,8 @@ import {
   Area,
   AreaChart,
 } from "recharts";
+import { getQueryFn } from "@/lib/queryClient";
+import type { ProjectMetric } from "@shared/schema";
 
 interface MetricOption {
   id: string;
@@ -46,6 +50,18 @@ interface ForecastDataPoint {
   [key: string]: number | string;
 }
 
+// Color palette for metrics
+const metricColors = [
+  "#10b981", // green
+  "#3b82f6", // blue
+  "#f59e0b", // amber
+  "#06b6d4", // cyan
+  "#8b5cf6", // purple
+  "#ec4899", // pink
+  "#ef4444", // red
+  "#14b8a6", // teal
+];
+
 export default function Forecast() {
   const [, params] = useRoute("/project/:id/forecast");
   const projectId = params?.id || "1";
@@ -55,14 +71,40 @@ export default function Forecast() {
   const [forecastGenerated, setForecastGenerated] = useState(false);
   const [forecastData, setForecastData] = useState<ForecastDataPoint[]>([]);
 
-  const availableMetrics: MetricOption[] = [
-    { id: "co2", name: "CO₂ Emissions Reduced", currentValue: 3.2, unit: "Tons/Quarter", color: "#10b981" },
-    { id: "recycled", name: "Recycled Material Usage", currentValue: 92, unit: "%", color: "#3b82f6" },
-    { id: "plastic", name: "Plastic Elimination", currentValue: 1200, unit: "kg/year", color: "#f59e0b" },
-    { id: "water", name: "Water Conservation", currentValue: 1250, unit: "Gallons/Month", color: "#06b6d4" },
-    { id: "energy", name: "Energy Savings", currentValue: 450, unit: "kWh/Month", color: "#8b5cf6" },
-    { id: "cost", name: "Cost Savings", currentValue: 12500, unit: "$/year", color: "#ec4899" },
-  ];
+  // Fetch project metrics from API
+  const { data: projectMetrics = [], isLoading: isLoadingMetrics } = useQuery<ProjectMetric[]>({
+    queryKey: [`/api/projects/${projectId}/metrics`],
+    queryFn: getQueryFn({ on401: "throw" }),
+    enabled: !!projectId,
+  });
+
+  // Convert project metrics to MetricOption format
+  const availableMetrics: MetricOption[] = useMemo(() => {
+    return projectMetrics.map((metric, index) => {
+      // Extract numeric value from metric.value
+      const numericMatch = metric.value.match(/[\d.]+/);
+      const currentValue = numericMatch ? parseFloat(numericMatch[0]) : 0;
+      
+      // Get unit from metric.unit or extract from value
+      let unit = metric.unit || "";
+      if (!unit && metric.value) {
+        // Try to extract unit from value string
+        const unitMatch = metric.value.match(/[a-zA-Z%]+/);
+        if (unitMatch) {
+          unit = unitMatch[0];
+        }
+      }
+      if (!unit) unit = "";
+
+      return {
+        id: metric.id,
+        name: metric.metricName,
+        currentValue,
+        unit,
+        color: metricColors[index % metricColors.length],
+      };
+    });
+  }, [projectMetrics]);
 
   const yearOptions = ["2026", "2027", "2028", "2029", "2030", "2035", "2040", "2050"];
 
@@ -83,6 +125,7 @@ export default function Forecast() {
 
     const data: ForecastDataPoint[] = [];
 
+    // Generate forecast for each quarter
     for (let i = 0; i <= quarters; i++) {
       const year = currentYear + Math.floor(i / 4);
       const quarter = (i % 4) + 1;
@@ -92,14 +135,46 @@ export default function Forecast() {
 
       selectedMetrics.forEach(metricId => {
         const metric = availableMetrics.find(m => m.id === metricId);
-        if (metric) {
-          const growthRate = 1 + (Math.random() * 0.15 + 0.05);
-          const volatility = 1 + (Math.random() * 0.1 - 0.05);
-          const seasonality = 1 + Math.sin(i * Math.PI / 2) * 0.08;
+        if (metric && metric.currentValue > 0) {
+          // Determine growth rate based on metric type
+          let baseGrowthRate = 1.05; // Default 5% growth per quarter
           
-          const baseGrowth = Math.pow(growthRate, i / 4);
-          const projectedValue = metric.currentValue * baseGrowth * volatility * seasonality;
+          const metricName = metric.name.toLowerCase();
           
+          // Different growth rates for different metric types
+          if (metricName.includes("co2") || metricName.includes("carbon") || metricName.includes("emission")) {
+            // Emissions reduction - positive growth means more reduction
+            baseGrowthRate = 1.08; // 8% improvement per quarter
+          } else if (metricName.includes("recycl") || metricName.includes("usage") || metricName.includes("%")) {
+            // Percentage metrics - slower growth, capped at 100%
+            baseGrowthRate = 1.03; // 3% growth per quarter
+          } else if (metricName.includes("cost") || metricName.includes("saving")) {
+            // Cost savings - moderate growth
+            baseGrowthRate = 1.06; // 6% growth per quarter
+          } else if (metricName.includes("water") || metricName.includes("energy")) {
+            // Resource metrics - steady growth
+            baseGrowthRate = 1.05; // 5% growth per quarter
+          }
+          
+          // Add some randomness for realism (volatility)
+          const volatility = 1 + (Math.random() * 0.1 - 0.05); // ±5% volatility
+          
+          // Add seasonality (slight variation by quarter)
+          const seasonality = 1 + Math.sin(i * Math.PI / 2) * 0.05; // ±5% seasonality
+          
+          // Calculate projected value
+          const baseGrowth = Math.pow(baseGrowthRate, i / 4);
+          let projectedValue = metric.currentValue * baseGrowth * volatility * seasonality;
+          
+          // Cap percentage metrics at 100%
+          if (metric.unit.includes("%") || metricName.includes("%")) {
+            projectedValue = Math.min(projectedValue, 100);
+          }
+          
+          // Ensure non-negative values
+          projectedValue = Math.max(0, projectedValue);
+          
+          // Store values
           dataPoint[metric.name] = parseFloat(projectedValue.toFixed(2));
           dataPoint[`${metric.name}_lower`] = parseFloat((projectedValue * 0.85).toFixed(2));
           dataPoint[`${metric.name}_upper`] = parseFloat((projectedValue * 1.15).toFixed(2));
@@ -119,6 +194,50 @@ export default function Forecast() {
   };
 
   const selectedMetricsArray = availableMetrics.filter(m => selectedMetrics.has(m.id));
+
+  // Loading state
+  if (isLoadingMetrics) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Loading project metrics...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty state
+  if (availableMetrics.length === 0) {
+    return (
+      <div className="space-y-6 max-w-7xl">
+        <div className="flex items-center gap-4">
+          <Link href={`/project/${projectId}`}>
+            <Button variant="ghost" size="icon" data-testid="button-back-to-project">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </Link>
+          <div className="flex-1">
+            <h1 className="text-4xl font-bold">Project Forecast</h1>
+            <p className="text-muted-foreground mt-1">
+              Generate time series forecasts for your sustainability metrics
+            </p>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="pt-6 text-center space-y-4">
+            <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground opacity-50" />
+            <p className="text-muted-foreground">
+              No metrics available for this project. Add metrics to generate forecasts.
+            </p>
+            <Link href={`/project/${projectId}`}>
+              <Button variant="outline">Back to Project</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-7xl">
@@ -328,13 +447,17 @@ export default function Forecast() {
                     <div className="text-center p-3 rounded-lg bg-muted">
                       <p className="text-muted-foreground mb-1">Projected ({targetYear})</p>
                       <p className="font-bold font-mono" style={{ color: metric.color }}>
-                        {forecastData[forecastData.length - 1][metric.name]} {metric.unit}
+                        {typeof forecastData[forecastData.length - 1][metric.name] === 'number' 
+                          ? forecastData[forecastData.length - 1][metric.name].toFixed(2)
+                          : forecastData[forecastData.length - 1][metric.name]} {metric.unit}
                       </p>
                     </div>
                     <div className="text-center p-3 rounded-lg bg-muted">
                       <p className="text-muted-foreground mb-1">Growth Rate</p>
                       <p className="font-bold font-mono text-primary">
-                        {(((Number(forecastData[forecastData.length - 1][metric.name]) / metric.currentValue - 1) * 100)).toFixed(1)}%
+                        {metric.currentValue > 0 
+                          ? (((Number(forecastData[forecastData.length - 1][metric.name]) / metric.currentValue - 1) * 100)).toFixed(1)
+                          : "0.0"}%
                       </p>
                     </div>
                   </div>
