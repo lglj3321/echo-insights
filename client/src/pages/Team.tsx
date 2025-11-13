@@ -337,9 +337,9 @@ export default function Team() {
                 teamMembers.map((member) => {
                   const RoleIcon = getRoleIcon(member.role as "admin" | "manager" | "viewer");
                   const initials = getInitials(member.email);
-                  const createdAt = member.createdAt instanceof Date 
-                    ? member.createdAt 
-                    : new Date(member.createdAt);
+                  const createdAt = member.createdAt 
+                    ? (member.createdAt instanceof Date ? member.createdAt : new Date(member.createdAt))
+                    : new Date();
                   
                   return (
                     <TableRow key={member.id} data-testid={`row-member-${member.id}`}>

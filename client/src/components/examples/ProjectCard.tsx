@@ -40,12 +40,10 @@ export default function ProjectCardExample() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
-      {sampleProjects.map(project => (
+      {sampleProjects.map((project: any) => (
         <ProjectCard
           key={project.id}
           project={project}
-          onGenerateQR={(id) => console.log('Generate QR for project:', id)}
-          onViewDetails={(id) => console.log('View details for project:', id)}
         />
       ))}
     </div>

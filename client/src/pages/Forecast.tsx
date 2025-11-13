@@ -447,9 +447,13 @@ export default function Forecast() {
                     <div className="text-center p-3 rounded-lg bg-muted">
                       <p className="text-muted-foreground mb-1">Projected ({targetYear})</p>
                       <p className="font-bold font-mono" style={{ color: metric.color }}>
-                        {typeof forecastData[forecastData.length - 1][metric.name] === 'number' 
-                          ? forecastData[forecastData.length - 1][metric.name].toFixed(2)
-                          : forecastData[forecastData.length - 1][metric.name]} {metric.unit}
+                        {(() => {
+                          const value = forecastData[forecastData.length - 1][metric.name];
+                          if (typeof value === 'number') {
+                            return value.toFixed(2);
+                          }
+                          return String(value);
+                        })()} {metric.unit}
                       </p>
                     </div>
                     <div className="text-center p-3 rounded-lg bg-muted">

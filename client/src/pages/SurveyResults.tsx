@@ -359,7 +359,7 @@ export default function SurveyResults() {
               </CardContent>
             </Card>
           ) : (
-            questionAnalysis.map((qa, idx) => (
+            questionAnalysis.map((qa: any, idx: number) => (
             <Card key={idx} data-testid={`question-analysis-${idx}`}>
               <CardHeader>
                 <CardTitle className="text-lg">{qa.question}</CardTitle>
@@ -369,7 +369,7 @@ export default function SurveyResults() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-3">
-                  {qa.distribution.map((dist, distIdx) => (
+                  {qa.distribution.map((dist: any, distIdx: number) => (
                     <div key={distIdx} className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">{dist.answer}</span>

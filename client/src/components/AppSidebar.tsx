@@ -69,8 +69,8 @@ export function AppSidebar() {
   const [location] = useLocation();
   const { user, logout, isLoggingOut } = useAuth();
 
-  const displayName = user?.fullName || user?.username || "User";
-  const displayEmail = user?.email || "";
+  const displayName = (user as any)?.fullName || (user as any)?.username || "User";
+  const displayEmail = (user as any)?.email || "";
 
   const handleSignOut = () => {
     logout();
@@ -111,7 +111,7 @@ export function AppSidebar() {
                 <SidebarMenuButton className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground" data-testid="button-user-menu">
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                      {displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                      {displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col items-start flex-1 text-left min-w-0">

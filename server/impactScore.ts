@@ -37,6 +37,9 @@ const metricBenchmarks: Record<string, MetricBenchmark> = {
   // Energy (kWh)
   'energy': { min: 0, max: 100000, target: 10000, unit: 'kWh', direction: 'lower' },
   'energy_saved': { min: 0, max: 100000, target: 50000, unit: 'kWh', direction: 'higher' },
+  'energy_generated': { min: 0, max: 100000, target: 50000, unit: 'kWh', direction: 'higher' },
+  'solar': { min: 0, max: 100000, target: 50000, unit: 'kWh', direction: 'higher' },
+  'renewable': { min: 0, max: 100000, target: 50000, unit: 'kWh', direction: 'higher' },
   'electricity': { min: 0, max: 100000, target: 10000, unit: 'kWh', direction: 'lower' },
   
   // Cost (USD)
@@ -50,6 +53,8 @@ const metricBenchmarks: Record<string, MetricBenchmark> = {
   // Waste (kg)
   'waste': { min: 0, max: 10000, target: 1000, unit: 'kg', direction: 'lower' },
   'waste_reduced': { min: 0, max: 10000, target: 5000, unit: 'kg', direction: 'higher' },
+  'weight_reduction': { min: 0, max: 10000, target: 5000, unit: 'kg', direction: 'higher' },
+  'packaging': { min: 0, max: 10000, target: 5000, unit: 'kg', direction: 'lower' },
   
   // Recycling (%)
   'recycl': { min: 0, max: 100, target: 80, unit: '%', direction: 'higher' },
@@ -64,7 +69,65 @@ const metricBenchmarks: Record<string, MetricBenchmark> = {
 function findBenchmark(metricName: string, unit?: string | null): MetricBenchmark | null {
   const name = metricName.toLowerCase();
   
-  // Direct match
+  // Priority: Check for exact or most specific matches first
+  // Try to match specific benchmark keys in order of specificity
+  
+  // First, try to match specific positive indicators with their benchmarks
+  if (name.includes('solar') || name.includes('energy_generated') || name.includes('energy generated')) {
+    // Check if 'solar' or 'energy_generated' benchmark exists
+    if (metricBenchmarks['solar']) return metricBenchmarks['solar'];
+    if (metricBenchmarks['energy_generated']) return metricBenchmarks['energy_generated'];
+    if (metricBenchmarks['renewable']) return metricBenchmarks['renewable'];
+  }
+  
+  if (name.includes('energy_saved') || name.includes('energy saved')) {
+    if (metricBenchmarks['energy_saved']) return metricBenchmarks['energy_saved'];
+  }
+  
+  if (name.includes('water_saved') || name.includes('water saved')) {
+    if (metricBenchmarks['water_saved']) return metricBenchmarks['water_saved'];
+  }
+  
+  if (name.includes('weight_reduction') || name.includes('weight reduction') || 
+      (name.includes('packaging') && name.includes('reduction'))) {
+    if (metricBenchmarks['weight_reduction']) return metricBenchmarks['weight_reduction'];
+    if (metricBenchmarks['waste_reduced']) return metricBenchmarks['waste_reduced'];
+  }
+  
+  if (name.includes('waste_reduced') || name.includes('waste reduced')) {
+    if (metricBenchmarks['waste_reduced']) return metricBenchmarks['waste_reduced'];
+  }
+  
+  if (name.includes('co2') || name.includes('carbon') || name.includes('emission')) {
+    if (metricBenchmarks['co2']) return metricBenchmarks['co2'];
+    if (metricBenchmarks['carbon']) return metricBenchmarks['carbon'];
+    if (metricBenchmarks['emission']) return metricBenchmarks['emission'];
+  }
+  
+  // Then check for general patterns
+  // Check for positive indicators (higher is better)
+  if (name.includes('saved') || name.includes('generated') || name.includes('reduced') || 
+      name.includes('recycled') || name.includes('renewable')) {
+    // Find matching benchmark with 'higher' direction
+    for (const [key, benchmark] of Object.entries(metricBenchmarks)) {
+      if (name.includes(key) && benchmark.direction === 'higher') {
+        return benchmark;
+      }
+    }
+  }
+  
+  // Check for negative indicators (lower is better)
+  if (name.includes('waste') || name.includes('consumption') || name.includes('emission') || 
+      name.includes('carbon') || name.includes('cost')) {
+    // Find matching benchmark with 'lower' direction
+    for (const [key, benchmark] of Object.entries(metricBenchmarks)) {
+      if (name.includes(key) && benchmark.direction === 'lower') {
+        return benchmark;
+      }
+    }
+  }
+  
+  // Direct match (fallback)
   for (const [key, benchmark] of Object.entries(metricBenchmarks)) {
     if (name.includes(key)) {
       return benchmark;
@@ -202,10 +265,13 @@ function calculateConfidence(metric: ProjectMetric, normalizedScore: number): nu
 }
 
 // Enhanced normalized score calculation with benchmarks
-function calculateNormalizedScore(metricName: string, value: string, unit?: string | null, providedScore?: number | null): number {
+function calculateNormalizedScore(metricName: string, value: string, unit?: string | null, providedScore?: number | null | string): number {
   // Use provided score if available and valid
-  if (providedScore !== null && providedScore !== undefined && !isNaN(providedScore)) {
-    return Math.max(0, Math.min(100, providedScore));
+  if (providedScore !== null && providedScore !== undefined) {
+    const numScore = typeof providedScore === 'string' ? parseFloat(providedScore) : providedScore;
+    if (!isNaN(numScore)) {
+      return Math.max(0, Math.min(100, numScore));
+    }
   }
   
   // Try to extract numeric value
@@ -251,8 +317,32 @@ function calculateNormalizedScore(metricName: string, value: string, unit?: stri
     }
   }
   
-  // For values without clear benchmark, use logarithmic scaling
-  // This prevents extreme values from dominating
+  // For values without clear benchmark, use intelligent scaling
+  // Check if it's a reduction/saving metric (higher is better)
+  if (name.includes("reduction") || name.includes("saved") || name.includes("generated") || 
+      name.includes("recycled") || name.includes("renewable")) {
+    // Higher values are better - use logarithmic scaling with optimistic target
+    if (normalizedValue > 0) {
+      const logValue = Math.log10(normalizedValue + 1);
+      const maxLogValue = 6; // Assume max is around 1,000,000
+      const baseScore = (logValue / maxLogValue) * 100;
+      // Boost score for positive metrics
+      return Math.min(100, baseScore * 1.2);
+    }
+  }
+  
+  // For consumption/waste metrics (lower is better), use inverse scaling
+  if (name.includes("consumption") || name.includes("waste") || name.includes("emission")) {
+    if (normalizedValue > 0) {
+      const logValue = Math.log10(normalizedValue + 1);
+      const maxLogValue = 6;
+      const baseScore = (logValue / maxLogValue) * 100;
+      // Invert: lower values get higher scores
+      return Math.max(0, 100 - baseScore * 0.8);
+    }
+  }
+  
+  // Default: use logarithmic scaling (neutral)
   if (normalizedValue > 0) {
     const logValue = Math.log10(normalizedValue + 1);
     const maxLogValue = 6; // Assume max is around 1,000,000

@@ -66,18 +66,14 @@ function Router() {
         </ProtectedRoute>
       </Route>
       <Route path="/project/:id">
-        {(params) => (
-          <ProtectedRoute>
-            <ProjectDetails id={params?.id} />
-          </ProtectedRoute>
-        )}
+        <ProtectedRoute>
+          <ProjectDetails />
+        </ProtectedRoute>
       </Route>
       <Route path="/project/:id/forecast">
-        {(params) => (
-          <ProtectedRoute>
-            <Forecast id={params?.id} />
-          </ProtectedRoute>
-        )}
+        <ProtectedRoute>
+          <Forecast />
+        </ProtectedRoute>
       </Route>
       <Route path="/comparison">
         <ProtectedRoute>
@@ -90,11 +86,9 @@ function Router() {
         </ProtectedRoute>
       </Route>
       <Route path="/feedback/:id">
-        {(params) => (
-          <ProtectedRoute>
-            <SurveyResults id={params?.id} />
-          </ProtectedRoute>
-        )}
+        <ProtectedRoute>
+          <SurveyResults />
+        </ProtectedRoute>
       </Route>
       <Route path="/analytics">
         <ProtectedRoute>

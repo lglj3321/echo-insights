@@ -87,7 +87,8 @@ export default function ProjectDetails() {
   // Set initial update when project is loaded
   useEffect(() => {
     if (project && projectUpdates.length === 0) {
-      const createdDate = new Date(project.createdAt);
+      const createdAt = project.createdAt ? (project.createdAt instanceof Date ? project.createdAt : new Date(project.createdAt)) : new Date();
+      const createdDate = createdAt;
       const quarter = Math.floor(createdDate.getMonth() / 3) + 1;
       const period = `Q${quarter}`;
       const year = createdDate.getFullYear().toString();
@@ -95,9 +96,7 @@ export default function ProjectDetails() {
       setProjectUpdates([{
         period,
         year,
-        timestamp: project.createdAt instanceof Date 
-          ? project.createdAt.toISOString() 
-          : new Date(project.createdAt).toISOString(),
+        timestamp: createdAt.toISOString(),
         notes: "Initial project creation",
         metricUpdates: [],
         newMetrics: [],
@@ -441,7 +440,7 @@ export default function ProjectDetails() {
             <Badge variant="outline" className="capitalize">{project.status || "active"}</Badge>
           </div>
           <p className="text-muted-foreground mt-1">
-            Created on {new Date(project.createdAt).toLocaleDateString()}
+            Created on {project.createdAt ? (project.createdAt instanceof Date ? project.createdAt : new Date(project.createdAt)).toLocaleDateString() : 'N/A'}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">

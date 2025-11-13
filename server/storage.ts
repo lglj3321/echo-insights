@@ -165,6 +165,8 @@ export class MemStorage implements IStorage {
       customCategory: project.customCategory ?? null,
       waterSaved: project.waterSaved ?? null,
       actualCost: project.actualCost ?? null,
+      co2Saved: project.co2Saved ?? null,
+      impactScore: project.impactScore ?? null,
       status: project.status ?? "active",
       assignedTo: project.assignedTo ?? null,
       startDate: project.startDate ?? null,
