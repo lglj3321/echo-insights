@@ -25,10 +25,14 @@ interface MetricBenchmark {
 
 // Benchmark database for common metrics
 const metricBenchmarks: Record<string, MetricBenchmark> = {
-  // CO2 Emissions (tons)
+  // CO2 Emissions (tons) - lower is better for emissions
   'co2': { min: 0, max: 50, target: 5, unit: 'tons', direction: 'lower' },
   'carbon': { min: 0, max: 50, target: 5, unit: 'tons', direction: 'lower' },
   'emission': { min: 0, max: 50, target: 5, unit: 'tons', direction: 'lower' },
+  // CO2 Reduction (tons) - higher is better for reductions
+  'co2_reduction': { min: 0, max: 50, target: 25, unit: 'tons', direction: 'higher' },
+  'carbon_reduction': { min: 0, max: 50, target: 25, unit: 'tons', direction: 'higher' },
+  'emission_reduction': { min: 0, max: 50, target: 25, unit: 'tons', direction: 'higher' },
   
   // Water (liters/gallons)
   'water': { min: 0, max: 100000, target: 10000, unit: 'liters', direction: 'lower' },
@@ -98,7 +102,16 @@ function findBenchmark(metricName: string, unit?: string | null): MetricBenchmar
     if (metricBenchmarks['waste_reduced']) return metricBenchmarks['waste_reduced'];
   }
   
-  if (name.includes('co2') || name.includes('carbon') || name.includes('emission')) {
+  // Check for CO2/Carbon/Emission metrics
+  // Prioritize "reduction" metrics (higher is better) over "emission" metrics (lower is better)
+  if ((name.includes('co2') || name.includes('carbon') || name.includes('emission')) && 
+      (name.includes('reduction') || name.includes('reduced') || name.includes('saved'))) {
+    // This is a reduction metric, higher is better
+    if (metricBenchmarks['co2_reduction']) return metricBenchmarks['co2_reduction'];
+    if (metricBenchmarks['carbon_reduction']) return metricBenchmarks['carbon_reduction'];
+    if (metricBenchmarks['emission_reduction']) return metricBenchmarks['emission_reduction'];
+  } else if (name.includes('co2') || name.includes('carbon') || name.includes('emission')) {
+    // This is an emission metric, lower is better
     if (metricBenchmarks['co2']) return metricBenchmarks['co2'];
     if (metricBenchmarks['carbon']) return metricBenchmarks['carbon'];
     if (metricBenchmarks['emission']) return metricBenchmarks['emission'];
