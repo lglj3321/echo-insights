@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useRoute, Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,8 +17,11 @@ import {
   Download,
   ThumbsUp,
   ThumbsDown,
-  Minus
+  Minus,
+  Loader2
 } from "lucide-react";
+import { getQueryFn } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ResponseData {
   id: string;
@@ -45,342 +49,74 @@ interface QuestionAnalysis {
 }
 
 export default function SurveyResults() {
+  const { user } = useAuth();
   const [, params] = useRoute("/feedback/:id");
   const surveyId = params?.id;
 
-  // Mock survey database - keyed by ID
-  const surveyDatabase: Record<string, any> = {
-    "1": {
-      id: "1",
-      title: "Packaging Sustainability Feedback",
-      projectTitle: "100% Recycled Packaging Initiative",
-      status: "completed" as const,
-      totalResponses: 150,
-      targetResponses: 150,
-      createdAt: "2024-10-15",
-      completedAt: "2024-11-01",
-      trustScore: 8.4,
-      satisfactionScore: 8.7,
-      npsScore: 72,
-      npsBreakdown: {
-        promoters: 120, // 80%
-        passives: 18,   // 12%
-        detractors: 12, // 8%
-      },
-      sentimentBreakdown: {
-        positive: 117,  // 78%
-        neutral: 24,    // 16%
-        negative: 9,    // 6%
-      },
+  // Fetch survey results from API
+  const { data: survey, isLoading: isLoadingSurvey, error: surveyError } = useQuery({
+    queryKey: ['/api/surveys', surveyId, 'results'],
+    queryFn: async () => {
+      if (!surveyId) throw new Error("Survey ID is required");
+      const response = await fetch(`/api/surveys/${surveyId}/results`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        if (response.status === 404) return null;
+        throw new Error("Failed to load survey results");
+      }
+      return response.json();
     },
-    "2": {
-      id: "2",
-      title: "Solar Energy Consumer Trust Survey",
-      projectTitle: "Solar Panel Installation",
-      status: "completed" as const,
-      totalResponses: 150,
-      targetResponses: 150,
-      createdAt: "2024-09-20",
-      completedAt: "2024-10-01",
-      trustScore: 8.4,
-      satisfactionScore: 8.7,
-      npsScore: 72,
-      npsBreakdown: {
-        promoters: 120, // 80%
-        passives: 18,   // 12%
-        detractors: 12, // 8%
-      },
-      sentimentBreakdown: {
-        positive: 117,  // 78%
-        neutral: 24,    // 16%
-        negative: 9,    // 6%
-      },
+    enabled: !!user && !!surveyId,
+  });
+
+  // Fetch individual responses
+  const { data: individualResponses = [], isLoading: isLoadingResponses } = useQuery<ResponseData[]>({
+    queryKey: ['/api/surveys', surveyId, 'responses'],
+    queryFn: async () => {
+      if (!surveyId) return [];
+      const response = await fetch(`/api/surveys/${surveyId}/responses`, {
+        credentials: "include",
+      });
+      if (!response.ok) return [];
+      return response.json();
     },
-    "3": {
-      id: "3",
-      title: "Local Sourcing Perception Study",
-      projectTitle: "Local Sourcing Program",
-      status: "completed" as const,
-      totalResponses: 203,
-      targetResponses: 200,
-      createdAt: "2024-09-01",
-      completedAt: "2024-09-25",
-      trustScore: 7.9,
-      satisfactionScore: 8.2,
-      npsScore: 65,
-      npsBreakdown: {
-        promoters: 146, // 72% (rounded)
-        passives: 43,   // 21%
-        detractors: 14, // 7%
-      },
-      sentimentBreakdown: {
-        positive: 151,  // 74%
-        neutral: 38,    // 19%
-        negative: 14,   // 7%
-      },
-    },
-  };
+    enabled: !!user && !!surveyId,
+  });
 
-  const survey = surveyId && surveyDatabase[surveyId];
+  const isLoading = isLoadingSurvey || isLoadingResponses;
 
-  // Question analysis data by survey ID
-  const questionAnalysisDatabase: Record<string, QuestionAnalysis[]> = {
-    "1": [
-      {
-        question: "How satisfied are you with the sustainability of our packaging?",
-        responses: 150,
-        distribution: [
-          { answer: "Very Satisfied", count: 65, percentage: 43 },
-          { answer: "Satisfied", count: 52, percentage: 35 },
-          { answer: "Neutral", count: 23, percentage: 15 },
-          { answer: "Dissatisfied", count: 7, percentage: 5 },
-          { answer: "Very Dissatisfied", count: 3, percentage: 2 },
-        ],
-        averageRating: 8.3,
-        sentimentBreakdown: { positive: 117, neutral: 23, negative: 10 },
-      },
-      {
-        question: "Would you prefer products with biodegradable packaging?",
-        responses: 150,
-        distribution: [
-          { answer: "Definitely Yes", count: 95, percentage: 63 },
-          { answer: "Probably Yes", count: 38, percentage: 25 },
-          { answer: "Not Sure", count: 12, percentage: 8 },
-          { answer: "Probably No", count: 3, percentage: 2 },
-          { answer: "Definitely No", count: 2, percentage: 1 },
-        ],
-        averageRating: 9.1,
-        sentimentBreakdown: { positive: 133, neutral: 12, negative: 5 },
-      },
-      {
-        question: "How important is recyclable packaging in your purchase decision?",
-        responses: 150,
-        distribution: [
-          { answer: "Extremely Important", count: 72, percentage: 48 },
-          { answer: "Very Important", count: 48, percentage: 32 },
-          { answer: "Moderately Important", count: 22, percentage: 15 },
-          { answer: "Slightly Important", count: 6, percentage: 4 },
-          { answer: "Not Important", count: 2, percentage: 1 },
-        ],
-        averageRating: 8.8,
-        sentimentBreakdown: { positive: 120, neutral: 22, negative: 8 },
-      },
-    ],
-    "2": [
-      {
-        question: "How aware are you of our renewable energy initiatives?",
-        responses: 150,
-        distribution: [
-          { answer: "Very Aware", count: 58, percentage: 39 },
-          { answer: "Somewhat Aware", count: 62, percentage: 41 },
-          { answer: "Not Very Aware", count: 22, percentage: 15 },
-          { answer: "Not Aware at All", count: 8, percentage: 5 },
-        ],
-        averageRating: 7.9,
-        sentimentBreakdown: { positive: 120, neutral: 22, negative: 8 },
-      },
-      {
-        question: "Do our energy-saving efforts influence your trust in our brand?",
-        responses: 150,
-        distribution: [
-          { answer: "Significantly", count: 75, percentage: 50 },
-          { answer: "Moderately", count: 48, percentage: 32 },
-          { answer: "Slightly", count: 18, percentage: 12 },
-          { answer: "Not at All", count: 9, percentage: 6 },
-        ],
-        averageRating: 8.6,
-        sentimentBreakdown: { positive: 123, neutral: 18, negative: 9 },
-      },
-      {
-        question: "Would you recommend our brand based on our sustainability efforts?",
-        responses: 150,
-        distribution: [
-          { answer: "Definitely Yes", count: 82, percentage: 55 },
-          { answer: "Probably Yes", count: 45, percentage: 30 },
-          { answer: "Not Sure", count: 15, percentage: 10 },
-          { answer: "Probably No", count: 5, percentage: 3 },
-          { answer: "Definitely No", count: 3, percentage: 2 },
-        ],
-        averageRating: 8.9,
-        sentimentBreakdown: { positive: 127, neutral: 15, negative: 8 },
-      },
-    ],
-    "3": [
-      {
-        question: "How important is local sourcing to you?",
-        responses: 203,
-        distribution: [
-          { answer: "Extremely Important", count: 88, percentage: 43 },
-          { answer: "Very Important", count: 71, percentage: 35 },
-          { answer: "Moderately Important", count: 32, percentage: 16 },
-          { answer: "Slightly Important", count: 8, percentage: 4 },
-          { answer: "Not Important", count: 4, percentage: 2 },
-        ],
-        averageRating: 8.5,
-        sentimentBreakdown: { positive: 159, neutral: 32, negative: 12 },
-      },
-      {
-        question: "Do you value products with ethical supply chains?",
-        responses: 203,
-        distribution: [
-          { answer: "Strongly Agree", count: 105, percentage: 52 },
-          { answer: "Agree", count: 68, percentage: 33 },
-          { answer: "Neutral", count: 22, percentage: 11 },
-          { answer: "Disagree", count: 6, percentage: 3 },
-          { answer: "Strongly Disagree", count: 2, percentage: 1 },
-        ],
-        averageRating: 8.7,
-        sentimentBreakdown: { positive: 173, neutral: 22, negative: 8 },
-      },
-      {
-        question: "How much do you trust our sourcing practices?",
-        responses: 203,
-        distribution: [
-          { answer: "Completely Trust", count: 62, percentage: 31 },
-          { answer: "Mostly Trust", count: 89, percentage: 44 },
-          { answer: "Somewhat Trust", count: 38, percentage: 19 },
-          { answer: "Don't Trust Much", count: 10, percentage: 5 },
-          { answer: "Don't Trust at All", count: 4, percentage: 2 },
-        ],
-        averageRating: 7.8,
-        sentimentBreakdown: { positive: 151, neutral: 38, negative: 14 },
-      },
-    ],
-  };
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Loading survey results...</p>
+        </div>
+      </div>
+    );
+  }
 
-  const mockQuestionAnalysis = (surveyId && questionAnalysisDatabase[surveyId]) || [];
+  if (surveyError || !surveyId || !survey) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center space-y-2">
+          <p className="text-2xl font-bold">Survey not found</p>
+          <p className="text-muted-foreground">
+            {surveyError ? "Failed to load survey results" : "The requested survey could not be found."}
+          </p>
+          <Link href="/feedback">
+            <Button variant="outline" className="mt-4">
+              Back to Feedback
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
-  // Individual responses by survey ID
-  const individualResponsesDatabase: Record<string, ResponseData[]> = {
-    "1": [
-      {
-        id: "1",
-        questionText: "How satisfied are you with the sustainability of our packaging?",
-        answer: "Very Satisfied",
-        rating: 9,
-        timestamp: "2024-10-16 14:23:00",
-        sentiment: "positive",
-      },
-      {
-        id: "2",
-        questionText: "Would you prefer products with biodegradable packaging?",
-        answer: "Definitely Yes",
-        rating: 10,
-        timestamp: "2024-10-16 14:23:15",
-        sentiment: "positive",
-      },
-      {
-        id: "3",
-        questionText: "How important is recyclable packaging in your purchase decision?",
-        answer: "Extremely Important",
-        rating: 10,
-        timestamp: "2024-10-16 14:23:30",
-        sentiment: "positive",
-      },
-      {
-        id: "4",
-        questionText: "How satisfied are you with the sustainability of our packaging?",
-        answer: "Satisfied",
-        rating: 8,
-        timestamp: "2024-10-17 09:15:00",
-        sentiment: "positive",
-      },
-      {
-        id: "5",
-        questionText: "Would you prefer products with biodegradable packaging?",
-        answer: "Probably Yes",
-        rating: 8,
-        timestamp: "2024-10-17 09:15:20",
-        sentiment: "positive",
-      },
-    ],
-    "2": [
-      {
-        id: "1",
-        questionText: "How aware are you of our renewable energy initiatives?",
-        answer: "Very Aware",
-        rating: 9,
-        timestamp: "2024-09-21 10:30:00",
-        sentiment: "positive",
-      },
-      {
-        id: "2",
-        questionText: "Do our energy-saving efforts influence your trust in our brand?",
-        answer: "Significantly",
-        rating: 9,
-        timestamp: "2024-09-21 10:30:45",
-        sentiment: "positive",
-      },
-      {
-        id: "3",
-        questionText: "Would you recommend our brand based on our sustainability efforts?",
-        answer: "Definitely Yes",
-        rating: 10,
-        timestamp: "2024-09-21 10:31:10",
-        sentiment: "positive",
-      },
-      {
-        id: "4",
-        questionText: "How aware are you of our renewable energy initiatives?",
-        answer: "Somewhat Aware",
-        rating: 7,
-        timestamp: "2024-09-22 15:20:00",
-        sentiment: "neutral",
-      },
-      {
-        id: "5",
-        questionText: "Do our energy-saving efforts influence your trust in our brand?",
-        answer: "Moderately",
-        rating: 8,
-        timestamp: "2024-09-22 15:20:30",
-        sentiment: "positive",
-      },
-    ],
-    "3": [
-      {
-        id: "1",
-        questionText: "How important is local sourcing to you?",
-        answer: "Extremely Important",
-        rating: 9,
-        timestamp: "2024-09-05 12:15:00",
-        sentiment: "positive",
-      },
-      {
-        id: "2",
-        questionText: "Do you value products with ethical supply chains?",
-        answer: "Strongly Agree",
-        rating: 10,
-        timestamp: "2024-09-05 12:15:30",
-        sentiment: "positive",
-      },
-      {
-        id: "3",
-        questionText: "How much do you trust our sourcing practices?",
-        answer: "Completely Trust",
-        rating: 9,
-        timestamp: "2024-09-05 12:16:00",
-        sentiment: "positive",
-      },
-      {
-        id: "4",
-        questionText: "How important is local sourcing to you?",
-        answer: "Very Important",
-        rating: 8,
-        timestamp: "2024-09-06 09:45:00",
-        sentiment: "positive",
-      },
-      {
-        id: "5",
-        questionText: "Do you value products with ethical supply chains?",
-        answer: "Agree",
-        rating: 8,
-        timestamp: "2024-09-06 09:45:40",
-        sentiment: "positive",
-      },
-    ],
-  };
-
-  const mockIndividualResponses = (surveyId && individualResponsesDatabase[surveyId]) || [];
+  // Use real question analysis from API
+  const questionAnalysis = survey.questionAnalysis || [];
 
   const getNPSCategory = (score: number): string => {
     if (score >= 9) return "Promoter";
@@ -396,7 +132,7 @@ export default function SurveyResults() {
 
   const downloadCSV = () => {
     const headers = ["Question", "Answer", "Rating", "Timestamp", "Sentiment"];
-    const rows = mockIndividualResponses.map(r => [
+    const rows = individualResponses.map(r => [
       r.questionText,
       r.answer,
       r.rating?.toString() || "",
@@ -418,22 +154,6 @@ export default function SurveyResults() {
     URL.revokeObjectURL(url);
   };
 
-  if (!surveyId || !survey) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center space-y-2">
-          <p className="text-2xl font-bold">Survey not found</p>
-          <p className="text-muted-foreground">The requested survey could not be found.</p>
-          <Link href="/feedback">
-            <Button variant="outline" className="mt-4">
-              Back to Feedback
-            </Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 max-w-7xl">
       <div className="flex items-center gap-4">
@@ -445,13 +165,16 @@ export default function SurveyResults() {
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-4xl font-bold">{survey.title}</h1>
-            <Badge variant="secondary">Completed</Badge>
+            <Badge variant={survey.status === "completed" ? "secondary" : "outline"}>
+              {survey.status === "completed" ? "Completed" : "Gathering"}
+            </Badge>
           </div>
           <p className="text-muted-foreground mt-1">
             Project: {survey.projectTitle}
           </p>
           <p className="text-sm text-muted-foreground">
-            {new Date(survey.createdAt).toLocaleDateString()} - {new Date(survey.completedAt).toLocaleDateString()}
+            {new Date(survey.createdAt).toLocaleDateString()}
+            {survey.completedAt && ` - ${new Date(survey.completedAt).toLocaleDateString()}`}
           </p>
         </div>
         <Button variant="outline" onClick={downloadCSV} data-testid="button-export-csv">
@@ -478,7 +201,7 @@ export default function SurveyResults() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Trust Score</p>
-                <p className="text-3xl font-bold font-mono text-primary">{survey.trustScore}</p>
+                <p className="text-3xl font-bold font-mono text-primary">{survey.trustScore?.toFixed(1) || "N/A"}</p>
                 <p className="text-xs text-muted-foreground">out of 10</p>
               </div>
               <TrendingUp className="h-8 w-8 text-primary opacity-50" />
@@ -491,7 +214,7 @@ export default function SurveyResults() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Satisfaction</p>
-                <p className="text-3xl font-bold font-mono text-chart-3">{survey.satisfactionScore}</p>
+                <p className="text-3xl font-bold font-mono text-chart-3">{survey.satisfactionScore?.toFixed(1) || "N/A"}</p>
                 <p className="text-xs text-muted-foreground">out of 10</p>
               </div>
               <BarChart3 className="h-8 w-8 text-chart-3 opacity-50" />
@@ -629,7 +352,14 @@ export default function SurveyResults() {
         </TabsContent>
 
         <TabsContent value="questions" className="space-y-6">
-          {mockQuestionAnalysis.map((qa, idx) => (
+          {questionAnalysis.length === 0 ? (
+            <Card>
+              <CardContent className="pt-6 text-center space-y-4">
+                <p className="text-muted-foreground">No question analysis available yet</p>
+              </CardContent>
+            </Card>
+          ) : (
+            questionAnalysis.map((qa, idx) => (
             <Card key={idx} data-testid={`question-analysis-${idx}`}>
               <CardHeader>
                 <CardTitle className="text-lg">{qa.question}</CardTitle>
@@ -677,7 +407,8 @@ export default function SurveyResults() {
                 )}
               </CardContent>
             </Card>
-          ))}
+            ))
+          )}
         </TabsContent>
 
         <TabsContent value="responses" className="space-y-4">
@@ -685,12 +416,17 @@ export default function SurveyResults() {
             <CardHeader>
               <CardTitle>Individual Responses</CardTitle>
               <CardDescription>
-                Showing {mockIndividualResponses.length} most recent responses
+                Showing {individualResponses.length} most recent responses
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {mockIndividualResponses.map((response, idx) => (
+              {individualResponses.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No responses available yet</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {individualResponses.map((response, idx) => (
                   <div
                     key={response.id}
                     className="p-4 rounded-lg border hover-elevate"
@@ -724,8 +460,9 @@ export default function SurveyResults() {
                       )}
                     </div>
                   </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

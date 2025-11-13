@@ -10,6 +10,8 @@ import {
   type QRCodeScan,
   type SurveyResponse,
   type InsertSurveyResponse,
+  type SurveyQuestion,
+  type InsertSurveyQuestion,
   type Category,
   type InsertCategory,
   type CategoryMetric,
@@ -50,6 +52,13 @@ export interface IStorage {
   recordQRScan(projectId: string): Promise<QRCodeScan>;
   getQRScans(projectId: string): Promise<number>;
   
+  // Survey Questions
+  getSurveyQuestions(projectId: string): Promise<SurveyQuestion[]>;
+  getSurveyQuestion(id: string): Promise<SurveyQuestion | undefined>;
+  createSurveyQuestion(question: InsertSurveyQuestion): Promise<SurveyQuestion>;
+  updateSurveyQuestion(id: string, updates: Partial<SurveyQuestion>): Promise<SurveyQuestion | undefined>;
+  deleteSurveyQuestion(id: string): Promise<boolean>;
+  
   // Survey Responses
   createSurveyResponse(response: InsertSurveyResponse): Promise<SurveyResponse>;
   getSurveyResponses(projectId: string): Promise<SurveyResponse[]>;
@@ -78,6 +87,7 @@ export class MemStorage implements IStorage {
   private goals: Map<string, Goal>;
   private teamMembers: Map<string, TeamMember>;
   private qrScans: Map<string, QRCodeScan[]>;
+  private surveyQuestions: Map<string, SurveyQuestion>;
   private surveyResponses: Map<string, SurveyResponse[]>;
   private categories: Map<string, Category>;
   private categoryMetrics: Map<string, CategoryMetric>;
@@ -89,6 +99,7 @@ export class MemStorage implements IStorage {
     this.goals = new Map();
     this.teamMembers = new Map();
     this.qrScans = new Map();
+    this.surveyQuestions = new Map();
     this.surveyResponses = new Map();
     this.categories = new Map();
     this.categoryMetrics = new Map();
@@ -260,6 +271,42 @@ export class MemStorage implements IStorage {
     return (this.qrScans.get(projectId) || []).length;
   }
 
+  // Survey Question methods
+  async getSurveyQuestions(projectId: string): Promise<SurveyQuestion[]> {
+    return Array.from(this.surveyQuestions.values())
+      .filter(q => q.projectId === projectId)
+      .sort((a, b) => a.orderIndex - b.orderIndex);
+  }
+
+  async getSurveyQuestion(id: string): Promise<SurveyQuestion | undefined> {
+    return this.surveyQuestions.get(id);
+  }
+
+  async createSurveyQuestion(insertQuestion: InsertSurveyQuestion): Promise<SurveyQuestion> {
+    const id = randomUUID();
+    const question: SurveyQuestion = {
+      ...insertQuestion,
+      id,
+      options: insertQuestion.options ?? null,
+      isTemplate: insertQuestion.isTemplate ?? false,
+      createdAt: new Date(),
+    };
+    this.surveyQuestions.set(id, question);
+    return question;
+  }
+
+  async updateSurveyQuestion(id: string, updates: Partial<SurveyQuestion>): Promise<SurveyQuestion | undefined> {
+    const question = this.surveyQuestions.get(id);
+    if (!question) return undefined;
+    const updated = { ...question, ...updates };
+    this.surveyQuestions.set(id, updated);
+    return updated;
+  }
+
+  async deleteSurveyQuestion(id: string): Promise<boolean> {
+    return this.surveyQuestions.delete(id);
+  }
+
   // Survey Response methods
   async createSurveyResponse(response: InsertSurveyResponse): Promise<SurveyResponse> {
     const id = randomUUID();
@@ -284,10 +331,13 @@ export class MemStorage implements IStorage {
     const responses = this.surveyResponses.get(projectId) || [];
     if (responses.length === 0) return { score: 0, count: 0 };
     
-    const numericResponses = responses.filter(r => r.numericValue !== null);
+    const numericResponses = responses.filter(r => r.numericValue !== null && r.numericValue !== undefined);
     if (numericResponses.length === 0) return { score: 0, count: 0 };
     
-    const sum = numericResponses.reduce((acc, r) => acc + parseFloat(r.numericValue as string), 0);
+    const sum = numericResponses.reduce((acc, r) => {
+      const value = typeof r.numericValue === 'string' ? parseFloat(r.numericValue) : Number(r.numericValue);
+      return acc + (isNaN(value) ? 0 : value);
+    }, 0);
     const avg = sum / numericResponses.length;
     
     return { score: avg, count: numericResponses.length };
@@ -395,7 +445,7 @@ export class MemStorage implements IStorage {
 
 import { db } from "./db";
 import * as schema from "@shared/schema";
-import { eq, and, sql as drizzleSql } from "drizzle-orm";
+import { eq, and, sql as drizzleSql, asc } from "drizzle-orm";
 
 export class DatabaseStorage implements IStorage {
   private dbInstance: NonNullable<typeof db>;
@@ -523,6 +573,44 @@ export class DatabaseStorage implements IStorage {
     return result[0]?.count || 0;
   }
 
+  // Survey Questions
+  async getSurveyQuestions(projectId: string): Promise<SurveyQuestion[]> {
+    return await this.dbInstance.select()
+      .from(schema.surveyQuestions)
+      .where(eq(schema.surveyQuestions.projectId, projectId))
+      .orderBy(asc(schema.surveyQuestions.orderIndex));
+  }
+
+  async getSurveyQuestion(id: string): Promise<SurveyQuestion | undefined> {
+    const result = await this.dbInstance.select()
+      .from(schema.surveyQuestions)
+      .where(eq(schema.surveyQuestions.id, id))
+      .limit(1);
+    return result[0];
+  }
+
+  async createSurveyQuestion(insertQuestion: InsertSurveyQuestion): Promise<SurveyQuestion> {
+    const result = await this.dbInstance.insert(schema.surveyQuestions)
+      .values(insertQuestion)
+      .returning();
+    return result[0];
+  }
+
+  async updateSurveyQuestion(id: string, updates: Partial<SurveyQuestion>): Promise<SurveyQuestion | undefined> {
+    const result = await this.dbInstance.update(schema.surveyQuestions)
+      .set(updates)
+      .where(eq(schema.surveyQuestions.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteSurveyQuestion(id: string): Promise<boolean> {
+    const result = await this.dbInstance.delete(schema.surveyQuestions)
+      .where(eq(schema.surveyQuestions.id, id))
+      .returning();
+    return result.length > 0;
+  }
+
   // Survey Responses
   async createSurveyResponse(insertResponse: InsertSurveyResponse): Promise<SurveyResponse> {
     const result = await this.dbInstance.insert(schema.surveyResponses).values(insertResponse).returning();
@@ -535,7 +623,7 @@ export class DatabaseStorage implements IStorage {
 
   async getProjectFeedbackScore(projectId: string): Promise<{ score: number; count: number }> {
     const result = await this.dbInstance.select({
-      avg: drizzleSql<number>`COALESCE(AVG(rating), 0)`,
+      avg: drizzleSql<number>`COALESCE(AVG(numeric_value::numeric), 0)`,
       count: drizzleSql<number>`count(*)::int`
     })
       .from(schema.surveyResponses)

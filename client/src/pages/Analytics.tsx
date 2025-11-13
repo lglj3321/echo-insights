@@ -1,103 +1,124 @@
+import { useQuery } from "@tanstack/react-query";
 import { MetricCard } from "@/components/MetricCard";
 import { ImpactCostMatrix } from "@/components/ImpactCostMatrix";
 import { ProjectTypeChart } from "@/components/ProjectTypeChart";
 import { FeedbackTrendChart } from "@/components/FeedbackTrendChart";
-import { TrendingUp, Users, Star, Target } from "lucide-react";
+import { TrendingUp, Users, Star, Target, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Project } from "@/components/ProjectCard";
+import { getQueryFn } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
+
+interface TypeDistribution {
+  type: string;
+  count: number;
+}
+
+interface FeedbackTrend {
+  date: string;
+  score: number;
+}
 
 export default function Analytics() {
-  // TODO: Remove mock data - replace with actual API data
-  const mockProjects: Project[] = [
-    {
-      id: "1",
-      title: "100% Recycled Packaging",
-      description: "Switch all product packaging to 100% recycled materials",
-      type: "Packaging",
-      estimatedCost: 45000,
-      roi: 18,
-      co2Saved: 2.5,
-      waterSaved: 500,
-      feedbackScore: 4.6,
-      responseCount: 234
-    },
-    {
-      id: "2",
-      title: "Solar Energy Installation",
-      description: "Install solar panels on manufacturing facilities",
-      type: "Energy",
-      estimatedCost: 120000,
-      roi: 25,
-      co2Saved: 8.2,
-      feedbackScore: 4.1,
-      responseCount: 156
-    },
-    {
-      id: "3",
-      title: "Local Sourcing Initiative",
-      description: "Source 80% of ingredients from local suppliers",
-      type: "Sourcing",
-      estimatedCost: 28000,
-      roi: 12,
-      co2Saved: 1.8,
-      feedbackScore: 4.8,
-      responseCount: 312
-    },
-    {
-      id: "4",
-      title: "Water Recycling System",
-      description: "Implement advanced water recycling in production",
-      type: "Water",
-      estimatedCost: 75000,
-      roi: 20,
-      co2Saved: 3.5,
-      feedbackScore: 4.3,
-      responseCount: 189
-    },
-    {
-      id: "5",
-      title: "Zero Waste Initiative",
-      description: "Achieve zero waste to landfill by 2025",
-      type: "Waste",
-      estimatedCost: 35000,
-      roi: 15,
-      co2Saved: 2.1,
-      feedbackScore: 4.4,
-      responseCount: 201
-    },
-    {
-      id: "6",
-      title: "Electric Fleet Transition",
-      description: "Replace delivery vehicles with electric alternatives",
-      type: "Logistics",
-      estimatedCost: 95000,
-      roi: 22,
-      co2Saved: 5.8,
-      feedbackScore: 4.2,
-      responseCount: 167
-    },
-  ];
+  const { user } = useAuth();
 
-  const typeDistribution = [
-    { type: "Packaging", count: 8 },
-    { type: "Energy", count: 5 },
-    { type: "Sourcing", count: 6 },
-    { type: "Waste", count: 3 },
-    { type: "Water", count: 2 },
-  ];
+  // Fetch projects
+  const { data: projects = [], isLoading: isLoadingProjects } = useQuery<Project[]>({
+    queryKey: ['/api/projects'],
+    queryFn: getQueryFn({ on401: "throw" }),
+    enabled: !!user,
+  });
 
-  const feedbackTrend = [
-    { date: "Jan", score: 3.8 },
-    { date: "Feb", score: 4.1 },
-    { date: "Mar", score: 4.3 },
-    { date: "Apr", score: 4.2 },
-    { date: "May", score: 4.6 },
-    { date: "Jun", score: 4.5 },
-  ];
+  // Fetch type distribution
+  const { data: typeDistribution = [], isLoading: isLoadingDistribution } = useQuery<TypeDistribution[]>({
+    queryKey: ['/api/dashboard/type-distribution'],
+    queryFn: getQueryFn({ on401: "throw" }),
+    enabled: !!user,
+  });
 
-  const topProjects = [...mockProjects]
+  // Fetch feedback trend
+  const { data: feedbackTrend = [], isLoading: isLoadingTrend } = useQuery<FeedbackTrend[]>({
+    queryKey: ['/api/dashboard/feedback-trend'],
+    queryFn: getQueryFn({ on401: "throw" }),
+    enabled: !!user,
+  });
+
+  // Fetch feedback scores for projects
+  const { data: projectsWithFeedback } = useQuery({
+    queryKey: ['/api/projects', 'feedback'],
+    queryFn: async () => {
+      const projectsWithFeedbackData = await Promise.all(
+        projects.map(async (project) => {
+          try {
+            const response = await fetch(`/api/projects/${project.id}/feedback-score`, {
+              credentials: "include",
+            });
+            if (response.ok) {
+              const feedbackData = await response.json();
+              return {
+                projectId: project.id,
+                feedbackScore: feedbackData.score,
+                responseCount: feedbackData.count,
+              };
+            }
+          } catch (error) {
+            // Skip if feedback data not available
+          }
+          return {
+            projectId: project.id,
+            feedbackScore: undefined,
+            responseCount: 0,
+          };
+        })
+      );
+      return projectsWithFeedbackData;
+    },
+    enabled: !!user && projects.length > 0,
+  });
+
+  // Format projects with feedback data
+  const projectsWithData: Project[] = projects.map(project => {
+    const feedbackData = projectsWithFeedback?.find(f => f.projectId === project.id);
+    return {
+      ...project,
+      estimatedCost: Number(project.estimatedCost),
+      roi: Number(project.roi),
+      co2Saved: project.co2Saved ? Number(project.co2Saved) : 0,
+      waterSaved: project.waterSaved ? Number(project.waterSaved) : undefined,
+      feedbackScore: feedbackData?.feedbackScore,
+      responseCount: feedbackData?.responseCount || 0,
+      type: project.customCategory || project.type,
+    };
+  });
+
+  const topProjects = [...projectsWithData]
     .sort((a, b) => (b.feedbackScore || 0) - (a.feedbackScore || 0))
     .slice(0, 5);
+
+  // Calculate statistics
+  const totalInvestment = projectsWithData.reduce((sum, p) => sum + p.estimatedCost, 0);
+  const avgROI = projectsWithData.length > 0
+    ? projectsWithData.reduce((sum, p) => sum + p.roi, 0) / projectsWithData.length
+    : 0;
+  const highestRated = topProjects.length > 0 ? topProjects[0].feedbackScore || 0 : 0;
+  const highestRatedTitle = topProjects.length > 0 ? topProjects[0].title : "";
+
+  // Calculate average response rate (simplified)
+  const totalResponses = projectsWithData.reduce((sum, p) => sum + (p.responseCount || 0), 0);
+  const avgResponseRate = projectsWithData.length > 0 ? (totalResponses / projectsWithData.length / 10) * 100 : 0;
+
+  const isLoading = isLoadingProjects || isLoadingDistribution || isLoadingTrend;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Loading analytics...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -111,33 +132,32 @@ export default function Analytics() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           title="Avg Response Rate"
-          value="78%"
+          value={`${Math.round(avgResponseRate)}%`}
           icon={Users}
           subtitle="Across all projects"
-          trend={{ value: "+5% vs last month", isPositive: true }}
         />
         <MetricCard
           title="Highest Rated"
-          value="4.8"
+          value={highestRated > 0 ? highestRated.toFixed(1) : "0.0"}
           icon={Star}
-          subtitle="Local Sourcing Initiative"
+          subtitle={highestRatedTitle || "No ratings yet"}
         />
         <MetricCard
           title="Total Investment"
-          value="$398K"
+          value={`$${(totalInvestment / 1000).toFixed(0)}K`}
           icon={TrendingUp}
-          subtitle="Across 24 projects"
+          subtitle={`Across ${projectsWithData.length} projects`}
         />
         <MetricCard
           title="Avg ROI"
-          value="18.7%"
+          value={`${avgROI.toFixed(1)}%`}
           icon={Target}
           subtitle="Expected return"
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ImpactCostMatrix projects={mockProjects} />
+        <ImpactCostMatrix projects={projectsWithData} />
         <ProjectTypeChart data={typeDistribution} />
       </div>
 
@@ -150,7 +170,7 @@ export default function Analytics() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {topProjects.map((project, idx) => (
+              {topProjects.length > 0 ? topProjects.map((project, idx) => (
                 <div
                   key={project.id}
                   className="flex items-center justify-between p-3 rounded-md border hover-elevate"
@@ -174,7 +194,11 @@ export default function Analytics() {
                     </p>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No projects with feedback yet</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

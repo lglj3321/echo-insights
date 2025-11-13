@@ -246,10 +246,11 @@ export default function ProjectDetails() {
     return totalWeight > 0 ? Math.round(totalWeightedScore / totalWeight) : 0;
   };
 
-  // Use impactScore from project if available, otherwise calculate it
+  // Always use impactScore from project (server-calculated) for consistency
+  // If not available, calculate it (but this should be rare as server calculates it)
   const impactScore = project?.impactScore 
     ? Number(project.impactScore) 
-    : calculateImpactScore();
+    : (projectMetrics.length > 0 ? calculateImpactScore() : 0);
 
   const handleWeightChange = (type: string, value: number[]) => {
     setMetricWeights(prev => ({

@@ -180,6 +180,9 @@ export const insertSurveyResponseSchema = createInsertSchema(surveyResponses).om
 export const insertGoalSchema = createInsertSchema(goals).omit({
   id: true,
   createdAt: true,
+}).extend({
+  // 接受字符串或Date，并自动转换为Date（JSON请求中日期总是字符串）
+  targetDate: z.coerce.date(),
 });
 
 export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({

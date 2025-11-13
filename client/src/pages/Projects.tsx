@@ -34,7 +34,7 @@ import { Plus, Search, RefreshCw, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, getQueryFn } from "@/lib/queryClient";
 
 export default function Projects() {
   const { toast } = useToast();
@@ -60,6 +60,7 @@ export default function Projects() {
   // Fetch projects from API (不需要userId参数，后端从session获取)
   const { data: projects = [], isLoading: isLoadingProjects, error: projectsError } = useQuery<Project[]>({
     queryKey: ['/api/projects'],
+    queryFn: getQueryFn({ on401: "throw" }),
     enabled: !!user,
   });
 

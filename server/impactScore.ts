@@ -5,12 +5,131 @@ interface MetricScore {
   value: string;
   normalizedScore: number;
   type: string;
+  confidence: number; // 0-1, indicates data quality/reliability
 }
 
 interface MetricTypeWeight {
   type: string;
   weight: number;
   metrics: MetricScore[];
+}
+
+// Industry benchmarks and reference values (can be customized per industry)
+interface MetricBenchmark {
+  min: number;      // Minimum expected value (worst case)
+  max: number;      // Maximum expected value (best case)
+  target: number;   // Target value (good performance)
+  unit: string;     // Standard unit
+  direction: 'higher' | 'lower'; // Whether higher or lower is better
+}
+
+// Benchmark database for common metrics
+const metricBenchmarks: Record<string, MetricBenchmark> = {
+  // CO2 Emissions (tons)
+  'co2': { min: 0, max: 50, target: 5, unit: 'tons', direction: 'lower' },
+  'carbon': { min: 0, max: 50, target: 5, unit: 'tons', direction: 'lower' },
+  'emission': { min: 0, max: 50, target: 5, unit: 'tons', direction: 'lower' },
+  
+  // Water (liters/gallons)
+  'water': { min: 0, max: 100000, target: 10000, unit: 'liters', direction: 'lower' },
+  'water_saved': { min: 0, max: 100000, target: 50000, unit: 'liters', direction: 'higher' },
+  
+  // Energy (kWh)
+  'energy': { min: 0, max: 100000, target: 10000, unit: 'kWh', direction: 'lower' },
+  'energy_saved': { min: 0, max: 100000, target: 50000, unit: 'kWh', direction: 'higher' },
+  'electricity': { min: 0, max: 100000, target: 10000, unit: 'kWh', direction: 'lower' },
+  
+  // Cost (USD)
+  'cost': { min: 0, max: 1000000, target: 100000, unit: 'USD', direction: 'lower' },
+  'cost_saved': { min: 0, max: 1000000, target: 500000, unit: 'USD', direction: 'higher' },
+  'saving': { min: 0, max: 1000000, target: 500000, unit: 'USD', direction: 'higher' },
+  
+  // ROI (%)
+  'roi': { min: 0, max: 100, target: 20, unit: '%', direction: 'higher' },
+  
+  // Waste (kg)
+  'waste': { min: 0, max: 10000, target: 1000, unit: 'kg', direction: 'lower' },
+  'waste_reduced': { min: 0, max: 10000, target: 5000, unit: 'kg', direction: 'higher' },
+  
+  // Recycling (%)
+  'recycl': { min: 0, max: 100, target: 80, unit: '%', direction: 'higher' },
+  
+  // Satisfaction/Rating (1-5 or 1-10 scale)
+  'satisfaction': { min: 1, max: 5, target: 4, unit: 'scale', direction: 'higher' },
+  'rating': { min: 1, max: 5, target: 4, unit: 'scale', direction: 'higher' },
+  'score': { min: 0, max: 100, target: 80, unit: 'points', direction: 'higher' },
+};
+
+// Helper function to find matching benchmark
+function findBenchmark(metricName: string, unit?: string | null): MetricBenchmark | null {
+  const name = metricName.toLowerCase();
+  
+  // Direct match
+  for (const [key, benchmark] of Object.entries(metricBenchmarks)) {
+    if (name.includes(key)) {
+      return benchmark;
+    }
+  }
+  
+  return null;
+}
+
+// Helper function to normalize units
+function normalizeUnit(value: number, unit?: string | null): { value: number; normalizedUnit: string } {
+  if (!unit) return { value, normalizedUnit: 'unknown' };
+  
+  const unitLower = unit.toLowerCase();
+  
+  // Convert to standard units
+  if (unitLower.includes('kg') || unitLower.includes('kilogram')) {
+    return { value, normalizedUnit: 'kg' };
+  }
+  if (unitLower.includes('ton') || unitLower.includes('tonne')) {
+    return { value: value * 1000, normalizedUnit: 'kg' };
+  }
+  if (unitLower.includes('gallon')) {
+    return { value: value * 3.78541, normalizedUnit: 'liters' };
+  }
+  if (unitLower.includes('mwh')) {
+    return { value: value * 1000, normalizedUnit: 'kWh' };
+  }
+  if (unitLower.includes('$') || unitLower.includes('usd') || unitLower.includes('dollar')) {
+    return { value, normalizedUnit: 'USD' };
+  }
+  
+  return { value, normalizedUnit: unitLower };
+}
+
+// Scientific normalization using sigmoid/logistic function for better distribution
+function sigmoidNormalize(value: number, min: number, max: number, target: number, direction: 'higher' | 'lower'): number {
+  if (max === min) return 50; // Default if range is invalid
+  
+  // Normalize to 0-1 range
+  let normalized: number;
+  if (direction === 'higher') {
+    // Higher is better: use sigmoid centered at target
+    const range = max - min;
+    const position = (value - min) / range;
+    const targetPosition = (target - min) / range;
+    
+    // Sigmoid function: S(x) = 1 / (1 + e^(-k(x - x0)))
+    // k controls steepness, x0 is the center point
+    const k = 10; // Steepness factor
+    const x0 = targetPosition;
+    normalized = 1 / (1 + Math.exp(-k * (position - x0)));
+  } else {
+    // Lower is better: invert the sigmoid
+    const range = max - min;
+    const position = (value - min) / range;
+    const targetPosition = (target - min) / range;
+    
+    const k = 10;
+    const x0 = targetPosition;
+    normalized = 1 - (1 / (1 + Math.exp(-k * (position - x0))));
+  }
+  
+  // Scale to 0-100
+  return Math.max(0, Math.min(100, normalized * 100));
 }
 
 // Helper function to classify metric type based on name
@@ -20,28 +139,32 @@ function classifyMetricType(metricName: string): string {
   // Environmental Impact
   if (name.includes("co2") || name.includes("carbon") || name.includes("emission") || 
       name.includes("greenhouse") || name.includes("ghg") || name.includes("pollution") ||
-      name.includes("waste") || name.includes("recycl") || name.includes("plastic")) {
+      name.includes("waste") || name.includes("recycl") || name.includes("plastic") ||
+      name.includes("air") || name.includes("quality")) {
     return "Environmental Impact";
   }
   
   // Resource Efficiency
   if (name.includes("water") || name.includes("energy") || name.includes("power") ||
       name.includes("electricity") || name.includes("fuel") || name.includes("consumption") ||
-      name.includes("efficiency") || name.includes("usage") || name.includes("reduction")) {
+      name.includes("efficiency") || name.includes("usage") || name.includes("reduction") ||
+      name.includes("renewable")) {
     return "Resource Efficiency";
   }
   
   // Cost Effectiveness
   if (name.includes("cost") || name.includes("saving") || name.includes("roi") ||
       name.includes("revenue") || name.includes("profit") || name.includes("budget") ||
-      name.includes("expense") || name.includes("financial") || name.includes("economic")) {
+      name.includes("expense") || name.includes("financial") || name.includes("economic") ||
+      name.includes("investment")) {
     return "Cost Effectiveness";
   }
   
   // Social Impact
   if (name.includes("satisfaction") || name.includes("engagement") || name.includes("awareness") ||
       name.includes("education") || name.includes("community") || name.includes("social") ||
-      name.includes("brand") || name.includes("reputation") || name.includes("employee")) {
+      name.includes("brand") || name.includes("reputation") || name.includes("employee") ||
+      name.includes("health") || name.includes("safety")) {
     return "Social Impact";
   }
   
@@ -49,8 +172,42 @@ function classifyMetricType(metricName: string): string {
   return "Environmental Impact";
 }
 
-// Helper function to calculate normalized score if not provided
-function calculateNormalizedScore(metricName: string, value: string, unit?: string | null): number {
+// Calculate confidence score based on data quality
+function calculateConfidence(metric: ProjectMetric, normalizedScore: number): number {
+  let confidence = 1.0;
+  
+  // Reduce confidence if no unit provided
+  if (!metric.unit || metric.unit.trim() === '') {
+    confidence *= 0.8;
+  }
+  
+  // Reduce confidence if value seems unrealistic
+  const numericMatch = metric.value.match(/[\d.]+/);
+  if (numericMatch) {
+    const numericValue = parseFloat(numericMatch[0]);
+    if (numericValue < 0) {
+      confidence *= 0.7; // Negative values might be errors
+    }
+    if (numericValue === 0 && !metric.value.includes('0')) {
+      confidence *= 0.6; // Zero might indicate missing data
+    }
+  }
+  
+  // Increase confidence if normalizedScore was provided
+  if (metric.normalizedScore !== null && metric.normalizedScore !== undefined) {
+    confidence = Math.min(1.0, confidence * 1.1);
+  }
+  
+  return Math.max(0.5, Math.min(1.0, confidence));
+}
+
+// Enhanced normalized score calculation with benchmarks
+function calculateNormalizedScore(metricName: string, value: string, unit?: string | null, providedScore?: number | null): number {
+  // Use provided score if available and valid
+  if (providedScore !== null && providedScore !== undefined && !isNaN(providedScore)) {
+    return Math.max(0, Math.min(100, providedScore));
+  }
+  
   // Try to extract numeric value
   const numericMatch = value.match(/[\d.]+/);
   if (!numericMatch) return 50; // Default score if no number found
@@ -58,58 +215,80 @@ function calculateNormalizedScore(metricName: string, value: string, unit?: stri
   const numericValue = parseFloat(numericMatch[0]);
   if (isNaN(numericValue)) return 50;
   
+  // Normalize unit
+  const { value: normalizedValue, normalizedUnit } = normalizeUnit(numericValue, unit);
+  
+  // Find benchmark
+  const benchmark = findBenchmark(metricName, normalizedUnit);
+  
+  if (benchmark) {
+    // Use benchmark-based normalization
+    return sigmoidNormalize(
+      normalizedValue,
+      benchmark.min,
+      benchmark.max,
+      benchmark.target,
+      benchmark.direction
+    );
+  }
+  
+  // Fallback: intelligent scaling based on value magnitude and unit
   const name = metricName.toLowerCase();
   
-  // CO2/Carbon emissions - lower is better, normalize to 0-100
-  if (name.includes("co2") || name.includes("carbon") || name.includes("emission")) {
-    // Assume 0-10 tons is good (100), 10+ tons is worse
-    return Math.min(100, Math.max(0, 100 - (numericValue * 10)));
+  // Percentage values
+  if (value.includes("%") || unit?.includes("%") || normalizedUnit.includes('%')) {
+    return Math.max(0, Math.min(100, numericValue));
   }
   
-  // Water/Energy savings - higher is better
-  if (name.includes("water") || name.includes("energy") || name.includes("saving")) {
-    // Assume 0-1000 units is good, scale to 0-100
-    return Math.min(100, (numericValue / 10));
-  }
-  
-  // Percentage - use directly
-  if (value.includes("%") || unit?.includes("%")) {
-    return Math.min(100, Math.max(0, numericValue));
-  }
-  
-  // Cost savings - higher is better, but scale differently
-  if (name.includes("cost") || name.includes("saving")) {
-    // Assume 0-10000 is good, scale to 0-100
-    return Math.min(100, (numericValue / 100));
-  }
-  
-  // Rating (1-5 scale) - convert to 0-100
+  // Rating scales (1-5 or 1-10)
   if (name.includes("rating") || name.includes("satisfaction") || name.includes("score")) {
     if (numericValue <= 5) {
       return (numericValue / 5) * 100;
+    } else if (numericValue <= 10) {
+      return (numericValue / 10) * 100;
+    } else if (numericValue <= 100) {
+      return numericValue;
     }
   }
   
-  // Default: scale based on value magnitude
-  if (numericValue < 1) {
-    return numericValue * 100;
-  } else if (numericValue < 100) {
-    return numericValue;
-  } else {
-    return Math.min(100, 100 - (numericValue / 100));
+  // For values without clear benchmark, use logarithmic scaling
+  // This prevents extreme values from dominating
+  if (normalizedValue > 0) {
+    const logValue = Math.log10(normalizedValue + 1);
+    const maxLogValue = 6; // Assume max is around 1,000,000
+    return Math.min(100, (logValue / maxLogValue) * 100);
   }
+  
+  return 50; // Default fallback
 }
 
-// Default metric weights
+// Default metric weights (can be customized per project type)
 const defaultMetricWeights: Record<string, number> = {
-  "Environmental Impact": 40,
-  "Resource Efficiency": 30,
-  "Cost Effectiveness": 20,
-  "Social Impact": 10,
+  "Environmental Impact": 0.35,  // 35%
+  "Resource Efficiency": 0.30,   // 30%
+  "Cost Effectiveness": 0.20,    // 20%
+  "Social Impact": 0.15,         // 15%
 };
+
+// Normalize weights to sum to 1.0
+function normalizeWeights(weights: Record<string, number>): Record<string, number> {
+  const total = Object.values(weights).reduce((sum, w) => sum + w, 0);
+  if (total === 0) return defaultMetricWeights;
+  
+  const normalized: Record<string, number> = {};
+  for (const [key, value] of Object.entries(weights)) {
+    normalized[key] = value / total;
+  }
+  return normalized;
+}
 
 /**
  * Calculate Overall Impact Score from project metrics
+ * Uses scientific normalization, confidence weighting, and benchmark-based scoring
+ * 
+ * @param metrics - Array of project metrics
+ * @param metricWeights - Optional custom weights for metric types (should sum to 1.0)
+ * @returns Impact score from 0-100
  */
 export function calculateImpactScore(
   metrics: ProjectMetric[],
@@ -117,17 +296,26 @@ export function calculateImpactScore(
 ): number {
   if (metrics.length === 0) return 0;
 
-  // Convert ProjectMetric to MetricScore format
+  // Normalize weights
+  const normalizedWeights = normalizeWeights(metricWeights);
+
+  // Convert ProjectMetric to MetricScore format with confidence
   const metricScores: MetricScore[] = metrics.map((metric) => {
-    const normalizedScore = metric.normalizedScore 
-      ? Number(metric.normalizedScore) 
-      : calculateNormalizedScore(metric.metricName, metric.value, metric.unit);
+    const normalizedScore = calculateNormalizedScore(
+      metric.metricName,
+      metric.value,
+      metric.unit,
+      metric.normalizedScore
+    );
+    
+    const confidence = calculateConfidence(metric, normalizedScore);
     
     return {
       name: metric.metricName,
       value: metric.value,
-      normalizedScore: Math.round(normalizedScore),
+      normalizedScore: Math.round(normalizedScore * 100) / 100, // Round to 2 decimals
       type: classifyMetricType(metric.metricName),
+      confidence,
     };
   });
 
@@ -142,22 +330,134 @@ export function calculateImpactScore(
     }, {} as Record<string, MetricScore[]>)
   ).map(([type, metrics]) => ({
     type,
-    weight: metricWeights[type] || 25,
+    weight: normalizedWeights[type] || 0.25, // Default to equal weight if not specified
     metrics,
   }));
 
-  // Calculate weighted average
+  // Calculate weighted average with confidence adjustment
   let totalWeightedScore = 0;
   let totalWeight = 0;
 
   groupedMetrics.forEach(group => {
     if (group.metrics.length > 0) {
-      const groupAverage = group.metrics.reduce((sum, m) => sum + m.normalizedScore, 0) / group.metrics.length;
-      totalWeightedScore += groupAverage * group.weight;
-      totalWeight += group.weight;
+      // Calculate confidence-weighted average for this group
+      const totalConfidence = group.metrics.reduce((sum, m) => sum + m.confidence, 0);
+      const avgConfidence = totalConfidence / group.metrics.length;
+      
+      // Calculate average score, weighted by confidence
+      const confidenceWeightedSum = group.metrics.reduce(
+        (sum, m) => sum + (m.normalizedScore * m.confidence),
+        0
+      );
+      const groupAverage = totalConfidence > 0 
+        ? confidenceWeightedSum / totalConfidence
+        : group.metrics.reduce((sum, m) => sum + m.normalizedScore, 0) / group.metrics.length;
+      
+      // Apply confidence penalty to weight (lower confidence = lower effective weight)
+      const effectiveWeight = group.weight * avgConfidence;
+      
+      totalWeightedScore += groupAverage * effectiveWeight;
+      totalWeight += effectiveWeight;
     }
   });
 
-  return totalWeight > 0 ? Math.round(totalWeightedScore / totalWeight) : 0;
+  // Final score with minimum threshold
+  const finalScore = totalWeight > 0 ? totalWeightedScore / totalWeight : 0;
+  
+  // Apply slight smoothing to avoid extreme jumps
+  // Use a simple moving average approach if we have historical data
+  // For now, just round to integer
+  return Math.max(0, Math.min(100, Math.round(finalScore)));
 }
 
+/**
+ * Get detailed breakdown of impact score calculation
+ * Useful for debugging and transparency
+ */
+export function getImpactScoreBreakdown(
+  metrics: ProjectMetric[],
+  metricWeights: Record<string, number> = defaultMetricWeights
+): {
+  overallScore: number;
+  byType: Array<{
+    type: string;
+    weight: number;
+    averageScore: number;
+    confidence: number;
+    metricCount: number;
+  }>;
+  metrics: MetricScore[];
+} {
+  const normalizedWeights = normalizeWeights(metricWeights);
+  
+  const metricScores: MetricScore[] = metrics.map((metric) => {
+    const normalizedScore = calculateNormalizedScore(
+      metric.metricName,
+      metric.value,
+      metric.unit,
+      metric.normalizedScore
+    );
+    const confidence = calculateConfidence(metric, normalizedScore);
+    
+    return {
+      name: metric.metricName,
+      value: metric.value,
+      normalizedScore: Math.round(normalizedScore * 100) / 100,
+      type: classifyMetricType(metric.metricName),
+      confidence,
+    };
+  });
+
+  const groupedMetrics: MetricTypeWeight[] = Object.entries(
+    metricScores.reduce((acc, metric) => {
+      if (!acc[metric.type]) {
+        acc[metric.type] = [];
+      }
+      acc[metric.type].push(metric);
+      return acc;
+    }, {} as Record<string, MetricScore[]>)
+  ).map(([type, metrics]) => ({
+    type,
+    weight: normalizedWeights[type] || 0.25,
+    metrics,
+  }));
+
+  const byType = groupedMetrics.map(group => {
+    if (group.metrics.length === 0) {
+      return {
+        type: group.type,
+        weight: group.weight,
+        averageScore: 0,
+        confidence: 0,
+        metricCount: 0,
+      };
+    }
+    
+    const totalConfidence = group.metrics.reduce((sum, m) => sum + m.confidence, 0);
+    const avgConfidence = totalConfidence / group.metrics.length;
+    
+    const confidenceWeightedSum = group.metrics.reduce(
+      (sum, m) => sum + (m.normalizedScore * m.confidence),
+      0
+    );
+    const averageScore = totalConfidence > 0 
+      ? confidenceWeightedSum / totalConfidence
+      : group.metrics.reduce((sum, m) => sum + m.normalizedScore, 0) / group.metrics.length;
+    
+    return {
+      type: group.type,
+      weight: group.weight,
+      averageScore: Math.round(averageScore * 100) / 100,
+      confidence: Math.round(avgConfidence * 100) / 100,
+      metricCount: group.metrics.length,
+    };
+  });
+
+  const overallScore = calculateImpactScore(metrics, metricWeights);
+
+  return {
+    overallScore,
+    byType,
+    metrics: metricScores,
+  };
+}

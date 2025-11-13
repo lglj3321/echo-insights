@@ -4,11 +4,18 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "NODE_ENV=development tsx server/index.ts",
+    "dev": "PORT=3000 NODE_ENV=development tsx server/index.ts",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "test": "tsx scripts/test-all.ts",
+    "test:workflow": "tsx scripts/test-workflow.ts",
+    "test:seed": "tsx scripts/seed-test-data.ts",
+    "test:seed:memory": "tsx scripts/seed-test-data-memory.ts",
+    "test:data": "tsx scripts/testdata.ts",
+    "test:check": "tsx scripts/check-server.ts",
+    "setup:env": "tsx scripts/setup-env.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,21 +8,93 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Building2, User, Bell, Shield } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Upload, Building2, User, Bell, Shield, Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getQueryFn, apiRequest, queryClient } from "@/lib/queryClient";
+
+interface UserProfile {
+  id: string;
+  username: string;
+  email: string | null;
+  fullName: string | null;
+  companyName: string | null;
+  companyWebsite: string | null;
+  phone: string | null;
+  jobTitle: string | null;
+  notificationEmail: boolean | null;
+  notificationResponses: boolean | null;
+  notificationWeekly: boolean | null;
+  notificationMilestones: boolean | null;
+}
 
 export default function Settings() {
+  const { user } = useAuth();
   const { toast } = useToast();
-  const [notificationEmail, setNotificationEmail] = useState(true);
-  const [notificationResponses, setNotificationResponses] = useState(true);
-  const [notificationWeekly, setNotificationWeekly] = useState(true);
-  const [notificationMilestones, setNotificationMilestones] = useState(false);
+  
+  // Fetch user profile
+  const { data: userProfile, isLoading: isLoadingProfile } = useQuery<UserProfile>({
+    queryKey: ['/api/auth/user'],
+    queryFn: getQueryFn({ on401: "throw" }),
+    enabled: !!user,
+  });
+
+  // Form state
+  const [formData, setFormData] = useState({
+    fullName: "",
+    email: "",
+    phone: "",
+    jobTitle: "",
+    companyName: "",
+    companyWebsite: "",
+    notificationEmail: true,
+    notificationResponses: true,
+    notificationWeekly: true,
+    notificationMilestones: false,
+  });
+
+  // Update form data when user profile loads
+  useEffect(() => {
+    if (userProfile) {
+      setFormData({
+        fullName: userProfile.fullName || "",
+        email: userProfile.email || "",
+        phone: userProfile.phone || "",
+        jobTitle: userProfile.jobTitle || "",
+        companyName: userProfile.companyName || "",
+        companyWebsite: userProfile.companyWebsite || "",
+        notificationEmail: userProfile.notificationEmail ?? true,
+        notificationResponses: userProfile.notificationResponses ?? true,
+        notificationWeekly: userProfile.notificationWeekly ?? true,
+        notificationMilestones: userProfile.notificationMilestones ?? false,
+      });
+    }
+  }, [userProfile]);
+
+  // Update user mutation
+  const updateUserMutation = useMutation({
+    mutationFn: async (data: Partial<UserProfile>) => {
+      const response = await apiRequest("PATCH", "/api/user", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+      toast({
+        title: "Settings Saved",
+        description: "Your preferences have been updated successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save settings",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleSave = () => {
-    toast({
-      title: "Settings Saved",
-      description: "Your preferences have been updated successfully.",
-    });
+    updateUserMutation.mutate(formData);
   };
 
   const handleFileUpload = (type: string) => {
@@ -30,6 +103,17 @@ export default function Settings() {
       description: `${type} upload initiated`,
     });
   };
+
+  if (isLoadingProfile) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Loading settings...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -96,7 +180,8 @@ export default function Settings() {
                 <Label htmlFor="company-name">Company Name</Label>
                 <Input
                   id="company-name"
-                  defaultValue="Sustainable Foods Inc."
+                  value={formData.companyName}
+                  onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
                   data-testid="input-company-name"
                 />
               </div>
@@ -105,7 +190,8 @@ export default function Settings() {
                 <Input
                   id="company-website"
                   type="url"
-                  defaultValue="https://sustainablefoods.com"
+                  value={formData.companyWebsite}
+                  onChange={(e) => setFormData({ ...formData, companyWebsite: e.target.value })}
                   data-testid="input-company-website"
                 />
               </div>
@@ -123,7 +209,13 @@ export default function Settings() {
                 <Label>Profile Picture</Label>
                 <div className="flex items-center gap-4">
                   <Avatar className="w-20 h-20">
-                    <AvatarFallback className="text-lg">SJ</AvatarFallback>
+                    <AvatarFallback className="text-lg">
+                      {formData.fullName 
+                        ? formData.fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+                        : formData.email 
+                        ? formData.email.substring(0, 2).toUpperCase()
+                        : 'U'}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="space-y-2">
                     <Button
@@ -147,7 +239,8 @@ export default function Settings() {
                   <Label htmlFor="full-name">Full Name</Label>
                   <Input
                     id="full-name"
-                    defaultValue="Sarah Johnson"
+                    value={formData.fullName}
+                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                     data-testid="input-full-name"
                   />
                 </div>
@@ -156,7 +249,7 @@ export default function Settings() {
                   <Input
                     id="email"
                     type="email"
-                    defaultValue="sarah.johnson@company.com"
+                    value={formData.email}
                     disabled
                     data-testid="input-email"
                   />
@@ -171,6 +264,8 @@ export default function Settings() {
                   <Input
                     id="phone"
                     type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     placeholder="+1 (555) 123-4567"
                     data-testid="input-phone"
                   />
@@ -179,7 +274,8 @@ export default function Settings() {
                   <Label htmlFor="job-title">Job Title</Label>
                   <Input
                     id="job-title"
-                    defaultValue="Sustainability Director"
+                    value={formData.jobTitle}
+                    onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
                     data-testid="input-job-title"
                   />
                 </div>
@@ -205,8 +301,8 @@ export default function Settings() {
                   </p>
                 </div>
                 <Switch
-                  checked={notificationEmail}
-                  onCheckedChange={setNotificationEmail}
+                  checked={formData.notificationEmail}
+                  onCheckedChange={(checked) => setFormData({ ...formData, notificationEmail: checked })}
                   data-testid="switch-email"
                 />
               </div>
@@ -219,8 +315,8 @@ export default function Settings() {
                   </p>
                 </div>
                 <Switch
-                  checked={notificationResponses}
-                  onCheckedChange={setNotificationResponses}
+                  checked={formData.notificationResponses}
+                  onCheckedChange={(checked) => setFormData({ ...formData, notificationResponses: checked })}
                   data-testid="switch-responses"
                 />
               </div>
@@ -233,8 +329,8 @@ export default function Settings() {
                   </p>
                 </div>
                 <Switch
-                  checked={notificationWeekly}
-                  onCheckedChange={setNotificationWeekly}
+                  checked={formData.notificationWeekly}
+                  onCheckedChange={(checked) => setFormData({ ...formData, notificationWeekly: checked })}
                   data-testid="switch-weekly"
                 />
               </div>
@@ -247,8 +343,8 @@ export default function Settings() {
                   </p>
                 </div>
                 <Switch
-                  checked={notificationMilestones}
-                  onCheckedChange={setNotificationMilestones}
+                  checked={formData.notificationMilestones}
+                  onCheckedChange={(checked) => setFormData({ ...formData, notificationMilestones: checked })}
                   data-testid="switch-milestones"
                 />
               </div>
@@ -289,8 +385,12 @@ export default function Settings() {
       </Tabs>
 
       <div className="flex gap-2">
-        <Button onClick={handleSave} data-testid="button-save-settings">
-          Save Changes
+        <Button 
+          onClick={handleSave} 
+          data-testid="button-save-settings"
+          disabled={updateUserMutation.isPending}
+        >
+          {updateUserMutation.isPending ? "Saving..." : "Save Changes"}
         </Button>
         <Button variant="outline">Cancel</Button>
       </div>

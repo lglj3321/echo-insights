@@ -10,6 +10,7 @@ import {
   insertCategoryMetricSchema,
   insertProjectMetricSchema,
   insertUserSchema,
+  insertSurveyQuestionSchema,
 } from "@shared/schema";
 import { registerUser, loginUser, requireAuth, optionalAuth } from "./auth";
 import { calculateImpactScore } from "./impactScore";
@@ -45,6 +46,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
     res.status(401).json({ error: "Not authenticated" });
+  });
+
+  // 更新用户信息
+  app.patch("/api/user", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session!.userId!;
+      const user = await storage.updateUser(userId, req.body);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      res.json({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        companyName: user.companyName,
+        companyWebsite: user.companyWebsite,
+        phone: user.phone,
+        jobTitle: user.jobTitle,
+        notificationEmail: user.notificationEmail,
+        notificationResponses: user.notificationResponses,
+        notificationWeekly: user.notificationWeekly,
+        notificationMilestones: user.notificationMilestones,
+      });
+    } catch (error) {
+      console.error("Error updating user:", error);
+      res.status(500).json({ error: "Failed to update user" });
+    }
   });
 
   // 用户注册
@@ -125,7 +154,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.session!.userId!;
       const projects = await storage.getProjects(userId);
-      res.json(projects);
+      
+      // Ensure all projects have up-to-date impactScore for consistency
+      const projectsWithScores = await Promise.all(
+        projects.map(async (project) => {
+          const metrics = await storage.getProjectMetrics(project.id);
+          if (metrics.length > 0) {
+            const calculatedScore = calculateImpactScore(metrics);
+            // Update if score changed or not set
+            if (!project.impactScore || Number(project.impactScore) !== calculatedScore) {
+              await storage.updateProject(project.id, { impactScore: calculatedScore.toString() });
+              return { ...project, impactScore: calculatedScore.toString() };
+            }
+          }
+          return project;
+        })
+      );
+      
+      res.json(projectsWithScores);
     } catch (error) {
       console.error("Error fetching projects:", error);
       res.status(500).json({ error: "Failed to fetch projects" });
@@ -690,6 +736,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Survey Questions API
+  app.get("/api/projects/:projectId/survey-questions", requireAuth, async (req, res) => {
+    try {
+      const questions = await storage.getSurveyQuestions(req.params.projectId);
+      res.json(questions);
+    } catch (error) {
+      console.error("Error fetching survey questions:", error);
+      res.status(500).json({ error: "Failed to fetch survey questions" });
+    }
+  });
+
+  app.post("/api/survey-questions", requireAuth, async (req, res) => {
+    try {
+      const validation = insertSurveyQuestionSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error });
+      }
+      const question = await storage.createSurveyQuestion(validation.data);
+      res.status(201).json(question);
+    } catch (error) {
+      console.error("Error creating survey question:", error);
+      res.status(500).json({ error: "Failed to create survey question" });
+    }
+  });
+
+  app.patch("/api/survey-questions/:id", requireAuth, async (req, res) => {
+    try {
+      const question = await storage.updateSurveyQuestion(req.params.id, req.body);
+      if (!question) {
+        return res.status(404).json({ error: "Survey question not found" });
+      }
+      res.json(question);
+    } catch (error) {
+      console.error("Error updating survey question:", error);
+      res.status(500).json({ error: "Failed to update survey question" });
+    }
+  });
+
+  app.delete("/api/survey-questions/:id", requireAuth, async (req, res) => {
+    try {
+      const deleted = await storage.deleteSurveyQuestion(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Survey question not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting survey question:", error);
+      res.status(500).json({ error: "Failed to delete survey question" });
+    }
+  });
+
   // Survey Responses API
   app.post("/api/survey-responses", async (req, res) => {
     try {
@@ -719,6 +816,179 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(feedbackData);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch feedback score" });
+    }
+  });
+
+  // Surveys API - Get all surveys (projects with questions)
+  app.get("/api/surveys", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session!.userId!;
+      const projects = await storage.getProjects(userId);
+      
+      // Get surveys (projects that have survey questions)
+      const surveys = await Promise.all(
+        projects.map(async (project) => {
+          const questions = await storage.getSurveyQuestions(project.id);
+          const feedbackData = await storage.getProjectFeedbackScore(project.id);
+          const qrScans = await storage.getQRScans(project.id);
+          
+          if (questions.length === 0) return null;
+          
+          // Determine status based on responses
+          const status = feedbackData.count >= (questions.length * 10) ? "completed" : "gathering";
+          
+          return {
+            id: project.id,
+            title: `${project.title} Survey`,
+            projectId: project.id,
+            projectTitle: project.title,
+            status,
+            responses: feedbackData.count,
+            targetResponses: questions.length * 50, // Estimate
+            trustScore: feedbackData.score > 0 ? feedbackData.score : undefined,
+            satisfactionScore: feedbackData.score > 0 ? feedbackData.score : undefined,
+            npsScore: feedbackData.score > 0 ? Math.round((feedbackData.score / 5) * 100 - 50) : undefined,
+            createdAt: project.createdAt?.toISOString() || new Date().toISOString(),
+            completedAt: status === "completed" ? new Date().toISOString() : undefined,
+            questions: questions.map(q => q.questionText),
+            qrCodeUrl: `${req.protocol}://${req.get('host')}/survey/${project.id}`,
+          };
+        })
+      );
+      
+      // Filter out nulls and return
+      res.json(surveys.filter(s => s !== null));
+    } catch (error) {
+      console.error("Error fetching surveys:", error);
+      res.status(500).json({ error: "Failed to fetch surveys" });
+    }
+  });
+
+  // Survey Results API - Get detailed survey results
+  app.get("/api/surveys/:projectId/results", requireAuth, async (req, res) => {
+    try {
+      const projectId = req.params.projectId;
+      const project = await storage.getProject(projectId);
+      
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      const questions = await storage.getSurveyQuestions(projectId);
+      const responses = await storage.getSurveyResponses(projectId);
+      const feedbackData = await storage.getProjectFeedbackScore(projectId);
+
+      // Calculate question analysis
+      const questionAnalysis = questions.map(question => {
+        const questionResponses = responses.filter(r => r.questionId === question.id);
+        const numericResponses = questionResponses.filter(r => r.numericValue !== null);
+        
+        // Calculate distribution for choice questions
+        const answerCounts: Record<string, number> = {};
+        questionResponses.forEach(r => {
+          const answer = r.answer;
+          answerCounts[answer] = (answerCounts[answer] || 0) + 1;
+        });
+
+        const distribution = Object.entries(answerCounts).map(([answer, count]) => ({
+          answer,
+          count,
+          percentage: questionResponses.length > 0 ? (count / questionResponses.length) * 100 : 0,
+        }));
+
+        const averageRating = numericResponses.length > 0
+          ? numericResponses.reduce((sum, r) => sum + Number(r.numericValue), 0) / numericResponses.length
+          : undefined;
+
+        return {
+          question: question.questionText,
+          responses: questionResponses.length,
+          distribution,
+          averageRating,
+        };
+      });
+
+      // Calculate NPS breakdown (simplified - based on numeric scores)
+      const numericResponses = responses.filter(r => r.numericValue !== null);
+      const npsScores = numericResponses.map(r => Number(r.numericValue));
+      const promoters = npsScores.filter(s => s >= 4).length;
+      const detractors = npsScores.filter(s => s <= 2).length;
+      const passives = npsScores.length - promoters - detractors;
+
+      const npsScore = npsScores.length > 0
+        ? Math.round(((promoters - detractors) / npsScores.length) * 100)
+        : 0;
+
+      // Calculate sentiment (simplified - based on scores)
+      const positive = npsScores.filter(s => s >= 4).length;
+      const negative = npsScores.filter(s => s <= 2).length;
+      const neutral = npsScores.length - positive - negative;
+
+      const status = feedbackData.count >= (questions.length * 10) ? "completed" : "gathering";
+
+      res.json({
+        id: projectId,
+        title: `${project.title} Survey`,
+        projectTitle: project.title,
+        status,
+        totalResponses: feedbackData.count,
+        targetResponses: questions.length * 50,
+        createdAt: project.createdAt?.toISOString() || new Date().toISOString(),
+        completedAt: status === "completed" ? new Date().toISOString() : undefined,
+        trustScore: feedbackData.score > 0 ? feedbackData.score : undefined,
+        satisfactionScore: feedbackData.score > 0 ? feedbackData.score : undefined,
+        npsScore,
+        npsBreakdown: {
+          promoters,
+          passives,
+          detractors,
+        },
+        sentimentBreakdown: {
+          positive,
+          neutral,
+          negative,
+        },
+        questionAnalysis,
+      });
+    } catch (error) {
+      console.error("Error fetching survey results:", error);
+      res.status(500).json({ error: "Failed to fetch survey results" });
+    }
+  });
+
+  // Survey Individual Responses API
+  app.get("/api/surveys/:projectId/responses", requireAuth, async (req, res) => {
+    try {
+      const projectId = req.params.projectId;
+      const responses = await storage.getSurveyResponses(projectId);
+      const questions = await storage.getSurveyQuestions(projectId);
+
+      // Format responses with question text
+      const formattedResponses = responses.map(response => {
+        const question = questions.find(q => q.id === response.questionId);
+        return {
+          id: response.id,
+          questionText: question?.questionText || "Unknown question",
+          answer: response.answer,
+          rating: response.numericValue ? Number(response.numericValue) : undefined,
+          timestamp: response.createdAt?.toISOString() || new Date().toISOString(),
+          sentiment: response.numericValue 
+            ? Number(response.numericValue) >= 4 ? "positive" 
+              : Number(response.numericValue) <= 2 ? "negative" 
+              : "neutral"
+            : undefined,
+        };
+      });
+
+      // Sort by timestamp descending
+      formattedResponses.sort((a, b) => 
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
+
+      res.json(formattedResponses);
+    } catch (error) {
+      console.error("Error fetching individual responses:", error);
+      res.status(500).json({ error: "Failed to fetch individual responses" });
     }
   });
 

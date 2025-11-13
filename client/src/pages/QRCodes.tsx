@@ -1,10 +1,11 @@
+import { useQuery } from "@tanstack/react-query";
 import { QRCodeDisplay } from "@/components/QRCodeDisplay";
 import { MetricCard } from "@/components/MetricCard";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, QrCode, Users, TrendingUp, Eye } from "lucide-react";
-import { useState } from "react";
+import { Search, QrCode, Users, TrendingUp, Eye, Loader2 } from "lucide-react";
+import { useState, useMemo } from "react";
 import {
   Select,
   SelectContent,
@@ -12,6 +13,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getQueryFn } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
+import type { Project } from "@/components/ProjectCard";
 
 interface ProjectQR {
   projectId: string;
@@ -24,58 +28,94 @@ interface ProjectQR {
 }
 
 export default function QRCodes() {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
 
-  // TODO: Remove mock data - replace with actual API data
-  const mockProjectQRs: ProjectQR[] = [
-    {
-      projectId: "1",
-      projectTitle: "100% Recycled Packaging",
-      projectType: "Packaging",
-      surveyUrl: "https://echo-insights.app/survey/project-1",
-      totalScans: 523,
-      totalResponses: 234,
-      responseRate: 44.7,
-    },
-    {
-      projectId: "2",
-      projectTitle: "Solar Energy Installation",
-      projectType: "Energy",
-      surveyUrl: "https://echo-insights.app/survey/project-2",
-      totalScans: 312,
-      totalResponses: 156,
-      responseRate: 50.0,
-    },
-    {
-      projectId: "3",
-      projectTitle: "Local Sourcing Initiative",
-      projectType: "Sourcing",
-      surveyUrl: "https://echo-insights.app/survey/project-3",
-      totalScans: 687,
-      totalResponses: 312,
-      responseRate: 45.4,
-    },
-    {
-      projectId: "4",
-      projectTitle: "Water Recycling System",
-      projectType: "Water",
-      surveyUrl: "https://echo-insights.app/survey/project-4",
-      totalScans: 445,
-      totalResponses: 189,
-      responseRate: 42.5,
-    },
-  ];
+  // Fetch projects
+  const { data: projects = [], isLoading: isLoadingProjects } = useQuery<Project[]>({
+    queryKey: ['/api/projects'],
+    queryFn: getQueryFn({ on401: "throw" }),
+    enabled: !!user,
+  });
 
-  const filteredProjects = mockProjectQRs.filter(project => {
+  // Fetch QR scan counts and response counts for each project
+  const { data: projectsWithStats } = useQuery({
+    queryKey: ['/api/projects', 'qr-stats'],
+    queryFn: async () => {
+      const stats = await Promise.all(
+        projects.map(async (project) => {
+          try {
+            const [scansResponse, feedbackResponse] = await Promise.all([
+              fetch(`/api/projects/${project.id}/qr-scans`, { credentials: "include" }),
+              fetch(`/api/projects/${project.id}/feedback-score`, { credentials: "include" }),
+            ]);
+
+            const scansData = scansResponse.ok ? await scansResponse.json() : { count: 0 };
+            const feedbackData = feedbackResponse.ok ? await feedbackResponse.json() : { count: 0 };
+
+            return {
+              projectId: project.id,
+              totalScans: scansData.count || 0,
+              totalResponses: feedbackData.count || 0,
+            };
+          } catch (error) {
+            return {
+              projectId: project.id,
+              totalScans: 0,
+              totalResponses: 0,
+            };
+          }
+        })
+      );
+      return stats;
+    },
+    enabled: !!user && projects.length > 0,
+  });
+
+  // Format projects as ProjectQR
+  const projectQRs: ProjectQR[] = useMemo(() => {
+    return projects.map(project => {
+      const stats = projectsWithStats?.find(s => s.projectId === project.id);
+      const surveyUrl = `${window.location.origin}/survey/${project.id}`;
+      const totalScans = stats?.totalScans || 0;
+      const totalResponses = stats?.totalResponses || 0;
+      const responseRate = totalScans > 0 ? (totalResponses / totalScans) * 100 : 0;
+
+      return {
+        projectId: project.id,
+        projectTitle: project.title,
+        projectType: project.customCategory || project.type || "Other",
+        surveyUrl,
+        totalScans,
+        totalResponses,
+        responseRate,
+      };
+    });
+  }, [projects, projectsWithStats]);
+
+  const filteredProjects = projectQRs.filter(project => {
     const matchesSearch = project.projectTitle.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = filterType === "all" || project.projectType === filterType;
     return matchesSearch && matchesType;
   });
 
-  const totalScans = mockProjectQRs.reduce((sum, p) => sum + p.totalScans, 0);
-  const totalResponses = mockProjectQRs.reduce((sum, p) => sum + p.totalResponses, 0);
+  const totalScans = projectQRs.reduce((sum, p) => sum + p.totalScans, 0);
+  const totalResponses = projectQRs.reduce((sum, p) => sum + p.totalResponses, 0);
   const overallResponseRate = totalScans > 0 ? (totalResponses / totalScans) * 100 : 0;
+
+  const isLoading = isLoadingProjects;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Loading QR codes...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -89,7 +129,7 @@ export default function QRCodes() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           title="Total QR Codes"
-          value={mockProjectQRs.length.toString()}
+          value={projectQRs.length.toString()}
           icon={QrCode}
           subtitle="Active survey links"
         />
@@ -98,14 +138,12 @@ export default function QRCodes() {
           value={totalScans.toLocaleString()}
           icon={Eye}
           subtitle="All-time QR code scans"
-          trend={{ value: "+127 this week", isPositive: true }}
         />
         <MetricCard
           title="Total Responses"
           value={totalResponses.toLocaleString()}
           icon={Users}
           subtitle="Completed surveys"
-          trend={{ value: "+64 this week", isPositive: true }}
         />
         <MetricCard
           title="Response Rate"
@@ -144,7 +182,11 @@ export default function QRCodes() {
 
       {filteredProjects.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-muted-foreground">No projects found matching your search</p>
+          <p className="text-muted-foreground">
+            {projectQRs.length === 0 
+              ? "No projects yet. Create a project to generate QR codes." 
+              : "No projects found matching your search"}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
