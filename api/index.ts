@@ -1,6 +1,6 @@
 // api/index.ts (Vercel Handler)
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { app, registerRoutes, errorHandler } from './_lib/index'; // 导入 app 和
+import { app, registerRoutes, errorHandler } from './_lib/index.js'; // 导入 app 和
  
 // Vercel Serverless Functions 在两次调用之间会“冻结”
 // 我们需要一个变量来跟踪是否已经初始化了路由

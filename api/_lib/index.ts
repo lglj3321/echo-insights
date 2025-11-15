@@ -5,7 +5,7 @@ import cookieParser from "cookie-parser";
 // 1. 导入 registerRoutes (移除 .ts)
 // 我们在这里导入它，但不在 Vercel 生产环境中使用它
 // 我们将把它和 app 一起导出
-import { registerRoutes } from "./routes"; 
+import { registerRoutes } from "./routes.js"; 
 
 const app = express();
 
@@ -24,16 +24,38 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser()); // 保留 cookie-parser
 
 // --- 4. 保留日志中间件 ---
+// --- 4. 保留日志中间件 ---
 app.use((req, res, next) => {
   const start = Date.now();
-  // ... (你所有的日志代码保持不变) ...
+  const path = req.path; // <-- 1. 确保 path 已定义
+  let capturedJsonResponse: Record<string, any> | undefined = undefined; // <-- 2. 确保 capturedJsonResponse 已定义
+
+  const originalResJson = res.json;
+  res.json = function (bodyJson, ...args) { // <-- 3. 确保这个逻辑存在
+    capturedJsonResponse = bodyJson;
+    return originalResJson.apply(res, [bodyJson, ...args]);
+  };
+
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (req.path.startsWith("/api")) {
-      // ... (你所有的日志代码保持不变) ...
+    if (path.startsWith("/api")) {
+      
+      // --- (!!!) 关键修复在这里 (!!!) ---
+      // 在使用 logLine 之前定义它
+      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+      if (capturedJsonResponse) {
+        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      }
+      if (logLine.length > 80) {
+        logLine = logLine.slice(0, 79) + "…";
+      }
+      // --- 修复结束 ---
+      
+      // 改为 console.log()，Vercel 会自动捕获
       console.log(logLine); 
     }
   });
+
   next();
 });
 

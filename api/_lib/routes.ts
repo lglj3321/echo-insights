@@ -1,6 +1,6 @@
 import type { Express } from "express";
 //import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage } from "./storage.js";
 import { 
   insertProjectSchema,
   insertGoalSchema,
@@ -11,11 +11,11 @@ import {
   insertProjectMetricSchema,
   insertUserSchema,
   insertSurveyQuestionSchema,
-} from "../../shared/schema";
-import { registerUser, loginUser, requireAuth, optionalAuth } from "./auth";
-import { calculateImpactScore } from "./impactScore";
+} from "../../shared/schema.js";
+import { registerUser, loginUser, requireAuth, optionalAuth } from "./auth.js";
+import { calculateImpactScore } from "./impactScore.js";
 import { z } from "zod";
-import { generateToken } from "./jwt";
+import { generateToken } from "./jwt.js";
 
 // 注册请求schema
 const registerSchema = z.object({
@@ -713,7 +713,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
 
       // Import OpenAI classification service
-      const { classifyProject } = await import("./openai-service");
+      const { classifyProject } = await import("./openai-service.js");
 
       // Prepare metrics for classification
       const allMetrics = [
@@ -986,7 +986,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       const projects = await storage.getProjects(userId);
       
       // Import survey analytics utilities
-      const { calculateNPS, calculateSentiment, determineSurveyStatus } = await import('./surveyAnalytics');
+      const { calculateNPS, calculateSentiment, determineSurveyStatus } = await import('./surveyAnalytics.js');
       
       // Get surveys (projects that have survey questions)
       const surveys = await Promise.all(
@@ -1042,7 +1042,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
 
       // Import survey analytics utilities
-      const { calculateNPS, calculateSentiment, calculateAverageScore, determineSurveyStatus } = await import('./surveyAnalytics');
+      const { calculateNPS, calculateSentiment, calculateAverageScore, determineSurveyStatus } = await import('./surveyAnalytics.js');
 
       const questions = await storage.getSurveyQuestions(projectId);
       const responses = await storage.getSurveyResponses(projectId);
@@ -1257,7 +1257,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
 
       // Generate forecasts
-      const { generateForecasts } = await import('./forecast');
+      const { generateForecasts } = await import('./forecast.js');
       const forecasts = generateForecasts(selectedMetrics, targetYear, validScenario);
 
       res.json({ forecasts });

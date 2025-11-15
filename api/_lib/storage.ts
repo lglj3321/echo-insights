@@ -18,7 +18,7 @@ import {
   type InsertCategoryMetric,
   type ProjectMetric,
   type InsertProjectMetric,
-} from "../../shared/schema";
+} from "../../shared/schema.js";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -457,8 +457,8 @@ export class MemStorage implements IStorage {
   }
 }
 
-import { db } from "./db";
-import * as schema from "../../shared/schema";
+import { db } from "./db.js";
+import * as schema from "../../shared/schema.js";
 import { eq, and, sql as drizzleSql, asc } from "drizzle-orm";
 
 export class DatabaseStorage implements IStorage {
