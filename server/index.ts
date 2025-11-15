@@ -1,10 +1,17 @@
+// server/index.ts (Vercel-ready version)
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
 import cookieParser from "cookie-parser";
+
+// 1. 确保 './routes.ts' 和它导入的所有文件都使用了相对路径！
+import { registerRoutes } from "./routes.ts"; 
+
+// 2. 移除所有 Vercel 不需要的东西
+// 移除了 import { setupVite, serveStatic, log } from "./vite";
+// Vercel 会自动处理静态文件和日志
 
 const app = express();
 
+// --- 3. 保留所有 Express 中间件 ---
 declare module 'http' {
   interface IncomingMessage {
     rawBody: unknown
@@ -16,8 +23,9 @@ app.use(express.json({
   }
 }));
 app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser()); // 添加这行
+app.use(cookieParser()); // 保留 cookie-parser
 
+// --- 4. 保留日志中间件，但使用 console.log ---
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -36,58 +44,36 @@ app.use((req, res, next) => {
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
-
       if (logLine.length > 80) {
         logLine = logLine.slice(0, 79) + "…";
       }
-
-      log(logLine);
+      
+      // 改为 console.log()，Vercel 会自动捕获
+      console.log(logLine); 
     }
   });
 
   next();
 });
 
-(async () => {
-  const server = await registerRoutes(app);
+// --- 5. 核心修改：移除 (async () => { ... }) IIFE ---
+// 我们使用 "top-level await" 来配置路由
+// 假设 registerRoutes 会修改 app 对象
+await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+// --- 6. 保留错误处理中间件 ---
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  const status = err.status || err.statusCode || 500;
+  const message = err.message || "Internal Server Error";
 
-    res.status(status).json({ message });
-    throw err;
-  });
+  console.error("API Error:", err); // 在 Vercel 日志中打印真实错误
+  res.status(status).json({ message });
+});
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
-  }
+// --- 7. 移除所有 Vercel 不需要的部分 ---
+// 移除了 if (app.get("env") === "development") { ... }
+// 移除了 server.listen(...)
+// Vercel 会自动处理这些
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '3000', 10);
-  
-  // 使用标准listen方法（移除reusePort选项，因为macOS不支持）
-  // 使用localhost而不是0.0.0.0，避免某些系统上的问题
-  server.listen(port, 'localhost', () => {
-    log(`serving on port ${port}`);
-  }).on('error', (err: any) => {
-    if (err.code === 'EADDRINUSE' || err.code === 'ENOTSUP') {
-      log(`Port ${port} is not available (${err.code})`);
-      log(`Please use a different port by setting PORT environment variable:`);
-      log(`  PORT=3000 npm run dev`);
-      log(`Or free up port ${port} and try again.`);
-      process.exit(1);
-    } else {
-      log(`Failed to start server: ${err.message}`);
-      throw err;
-    }
-  });
-})();
+// --- 8. 导出 app，供 api/index.ts 导入 ---
+export default app;

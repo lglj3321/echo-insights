@@ -1,6 +1,6 @@
 import type { Express } from "express";
-import { createServer, type Server } from "http";
-import { storage } from "./storage";
+//import { createServer, type Server } from "http";
+import { storage } from "./storage.ts";
 import { 
   insertProjectSchema,
   insertGoalSchema,
@@ -11,11 +11,11 @@ import {
   insertProjectMetricSchema,
   insertUserSchema,
   insertSurveyQuestionSchema,
-} from "@shared/schema";
-import { registerUser, loginUser, requireAuth, optionalAuth } from "./auth";
-import { calculateImpactScore } from "./impactScore";
+} from "../shared/schema.ts";
+import { registerUser, loginUser, requireAuth, optionalAuth } from "./auth.ts";
+import { calculateImpactScore } from "./impactScore.ts";
 import { z } from "zod";
-import { generateToken } from "./jwt";
+import { generateToken } from "./jwt.ts";
 
 // 注册请求schema
 const registerSchema = z.object({
@@ -30,7 +30,7 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app: Express): Promise<void> {
   // 认证API
   // 获取当前用户信息
   app.get("/api/auth/user", optionalAuth, async (req, res) => {
@@ -713,7 +713,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Import OpenAI classification service
-      const { classifyProject } = await import("./openai-service");
+      const { classifyProject } = await import("./openai-service.ts");
 
       // Prepare metrics for classification
       const allMetrics = [
@@ -986,7 +986,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const projects = await storage.getProjects(userId);
       
       // Import survey analytics utilities
-      const { calculateNPS, calculateSentiment, determineSurveyStatus } = await import('./surveyAnalytics');
+      const { calculateNPS, calculateSentiment, determineSurveyStatus } = await import('./surveyAnalytics.ts');
       
       // Get surveys (projects that have survey questions)
       const surveys = await Promise.all(
@@ -1042,7 +1042,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Import survey analytics utilities
-      const { calculateNPS, calculateSentiment, calculateAverageScore, determineSurveyStatus } = await import('./surveyAnalytics');
+      const { calculateNPS, calculateSentiment, calculateAverageScore, determineSurveyStatus } = await import('./surveyAnalytics.ts');
 
       const questions = await storage.getSurveyQuestions(projectId);
       const responses = await storage.getSurveyResponses(projectId);
@@ -1257,7 +1257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Generate forecasts
-      const { generateForecasts } = await import('./forecast');
+      const { generateForecasts } = await import('./forecast.ts');
       const forecasts = generateForecasts(selectedMetrics, targetYear, validScenario);
 
       res.json({ forecasts });
@@ -1267,7 +1267,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const httpServer = createServer(app);
-
-  return httpServer;
+ 
 }

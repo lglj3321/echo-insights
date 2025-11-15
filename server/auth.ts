@@ -1,8 +1,8 @@
 import bcrypt from "bcrypt";
-import { storage } from "./storage";
-import { insertUserSchema } from "@shared/schema";
+import { storage } from "./storage.ts";
+import { insertUserSchema } from "../shared/schema.ts";
 import type { Request, Response, NextFunction } from "express";
-import { extractToken, verifyToken } from "./jwt";
+import { extractToken, verifyToken } from "./jwt.ts";
 
 // 确保 Express Request 类型扩展已加载（从 jwt.ts）
 // 类型定义在 jwt.ts 中，这里只是确保导入
