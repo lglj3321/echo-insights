@@ -1,6 +1,6 @@
 import bcrypt from "bcrypt";
 import { storage } from "./storage";
-import { insertUserSchema } from "../shared/schema";
+import { insertUserSchema } from "../../shared/schema";
 import type { Request, Response, NextFunction } from "express";
 import { extractToken, verifyToken } from "./jwt";
 

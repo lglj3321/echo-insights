@@ -11,7 +11,7 @@ import {
   insertProjectMetricSchema,
   insertUserSchema,
   insertSurveyQuestionSchema,
-} from "../shared/schema";
+} from "../../shared/schema";
 import { registerUser, loginUser, requireAuth, optionalAuth } from "./auth";
 import { calculateImpactScore } from "./impactScore";
 import { z } from "zod";
@@ -986,7 +986,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       const projects = await storage.getProjects(userId);
       
       // Import survey analytics utilities
-      const { calculateNPS, calculateSentiment, determineSurveyStatus } = await import('./surveyAnalytics');
+      const { calculateNPS, calculateSentiment, determineSurveyStatus } = await import('../../server/surveyAnalytics');
       
       // Get surveys (projects that have survey questions)
       const surveys = await Promise.all(
@@ -1042,7 +1042,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
 
       // Import survey analytics utilities
-      const { calculateNPS, calculateSentiment, calculateAverageScore, determineSurveyStatus } = await import('./surveyAnalytics');
+      const { calculateNPS, calculateSentiment, calculateAverageScore, determineSurveyStatus } = await import('../../server/surveyAnalytics');
 
       const questions = await storage.getSurveyQuestions(projectId);
       const responses = await storage.getSurveyResponses(projectId);

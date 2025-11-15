@@ -3,7 +3,7 @@
  * Uses scientific forecasting methods: linear regression, exponential smoothing, and trend analysis
  */
 
-import type { ProjectMetric } from "../shared/schema";
+import type { ProjectMetric } from "../../shared/schema";
 
 export interface ForecastDataPoint {
   period: string;
