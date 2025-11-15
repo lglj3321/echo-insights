@@ -1,12 +1,9 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { setupSession } from "./session";
+import cookieParser from "cookie-parser";
 
 const app = express();
-
-// 配置 session（必须在其他中间件之前）
-setupSession(app);
 
 declare module 'http' {
   interface IncomingMessage {
@@ -19,6 +16,7 @@ app.use(express.json({
   }
 }));
 app.use(express.urlencoded({ extended: false }));
+app.use(cookieParser()); // 添加这行
 
 app.use((req, res, next) => {
   const start = Date.now();

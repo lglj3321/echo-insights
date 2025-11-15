@@ -312,12 +312,24 @@ export class MemStorage implements IStorage {
   // Survey Response methods
   async createSurveyResponse(response: InsertSurveyResponse): Promise<SurveyResponse> {
     const id = randomUUID();
+    
+    // Support custom createdAt from metadata (for testing purposes)
+    let createdAt = new Date();
+    if (response.metadata && typeof response.metadata === 'object' && 'createdAt' in response.metadata) {
+      const customDate = response.metadata.createdAt;
+      if (typeof customDate === 'string') {
+        createdAt = new Date(customDate);
+      } else if (customDate instanceof Date) {
+        createdAt = customDate;
+      }
+    }
+    
     const newResponse: SurveyResponse = {
       ...response,
       id,
       numericValue: response.numericValue ?? null,
       metadata: response.metadata ?? null,
-      createdAt: new Date(),
+      createdAt,
     };
     const responses = this.surveyResponses.get(response.projectId) || [];
     responses.push(newResponse);

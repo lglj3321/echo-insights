@@ -2,20 +2,10 @@ import bcrypt from "bcrypt";
 import { storage } from "./storage";
 import { insertUserSchema } from "@shared/schema";
 import type { Request, Response, NextFunction } from "express";
+import { extractToken, verifyToken } from "./jwt";
 
-// 扩展 Express Request 类型以包含 user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        id: string;
-        username: string;
-        email: string | null;
-        fullName: string | null;
-      };
-    }
-  }
-}
+// 确保 Express Request 类型扩展已加载（从 jwt.ts）
+// 类型定义在 jwt.ts 中，这里只是确保导入
 
 // 密码哈希
 export async function hashPassword(password: string): Promise<string> {
@@ -31,17 +21,46 @@ export async function verifyPassword(
   return await bcrypt.compare(password, hashedPassword);
 }
 
-// 认证中间件 - 检查用户是否已登录
-export function requireAuth(
+// 认证中间件 - 检查用户是否已登录（使用 JWT）
+export async function requireAuth(
   req: Request,
   res: Response,
   next: NextFunction
-): void {
-  if (!req.session?.userId) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
+): Promise<void> {
+  try {
+    const token = extractToken(req);
+    
+    if (!token) {
+      res.status(401).json({ error: "Unauthorized: No token provided" });
+      return;
+    }
+
+    const payload = verifyToken(token);
+    
+    if (!payload) {
+      res.status(401).json({ error: "Unauthorized: Invalid token" });
+      return;
+    }
+
+    // 从数据库获取用户信息（可选，用于验证用户仍然存在）
+    const user = await storage.getUser(payload.userId);
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized: User not found" });
+      return;
+    }
+
+    // 设置 req.user
+    req.user = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      fullName: user.fullName,
+    };
+
+    next();
+  } catch (error) {
+    res.status(401).json({ error: "Unauthorized: Token verification failed" });
   }
-  next();
 }
 
 // 可选认证中间件 - 如果已登录则设置 req.user
@@ -50,17 +69,28 @@ export async function optionalAuth(
   res: Response,
   next: NextFunction
 ): Promise<void> {
-  if (req.session?.userId) {
-    const user = await storage.getUser(req.session.userId);
-    if (user) {
-      req.user = {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        fullName: user.fullName,
-      };
+  try {
+    const token = extractToken(req);
+    
+    if (token) {
+      const payload = verifyToken(token);
+      
+      if (payload) {
+        const user = await storage.getUser(payload.userId);
+        if (user) {
+          req.user = {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            fullName: user.fullName,
+          };
+        }
+      }
     }
+  } catch (error) {
+    // 忽略错误，继续执行（可选认证）
   }
+  
   next();
 }
 

@@ -15,7 +15,6 @@ import Forecast from "@/pages/Forecast";
 import Comparison from "@/pages/Comparison";
 import Feedback from "@/pages/Feedback";
 import SurveyResults from "@/pages/SurveyResults";
-import Analytics from "@/pages/Analytics";
 import Settings from "@/pages/Settings";
 import Survey from "@/pages/Survey";
 import Goals from "@/pages/Goals";
@@ -90,11 +89,6 @@ function Router() {
           <SurveyResults />
         </ProtectedRoute>
       </Route>
-      <Route path="/analytics">
-        <ProtectedRoute>
-          <Analytics />
-        </ProtectedRoute>
-      </Route>
       <Route path="/goals">
         <ProtectedRoute>
           <Goals />
@@ -116,14 +110,21 @@ function Router() {
 }
 
 function AppContent() {
-  const [location] = useLocation();
-  const { isAuthenticated } = useAuth();
+  const [location, navigate] = useLocation();
+  const { isAuthenticated, isLoading } = useAuth();
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
   };
 
   // 登录页面不显示侧边栏
+  // 如果已认证且正在登录页面，重定向到首页
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && location === "/login") {
+      navigate("/");
+    }
+  }, [isAuthenticated, isLoading, location, navigate]);
+
   if (location === "/login") {
     return (
       <TooltipProvider>

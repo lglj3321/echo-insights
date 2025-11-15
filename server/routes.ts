@@ -15,6 +15,7 @@ import {
 import { registerUser, loginUser, requireAuth, optionalAuth } from "./auth";
 import { calculateImpactScore } from "./impactScore";
 import { z } from "zod";
+import { generateToken } from "./jwt";
 
 // 注册请求schema
 const registerSchema = z.object({
@@ -51,7 +52,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 更新用户信息
   app.patch("/api/user", requireAuth, async (req, res) => {
     try {
-      const userId = req.session!.userId!;
+      const userId = req.user!.id;
       const user = await storage.updateUser(userId, req.body);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
@@ -90,13 +91,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { username, password, email } = validation.data;
       const user = await registerUser(username, password, email);
 
-      // 设置session
-      req.session!.userId = user.id;
+      // 生成 JWT Token
+      const token = generateToken({
+        userId: user.id,
+        username: user.username,
+      });
 
       res.status(201).json({
         id: user.id,
         username: user.username,
         email: user.email,
+        token, // 返回 token
       });
     } catch (error: any) {
       if (error.message === "Username already exists") {
@@ -121,13 +126,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { username, password } = validation.data;
       const user = await loginUser(username, password);
 
-      // 设置session
-      req.session!.userId = user.id;
+      // 生成 JWT Token
+      const token = generateToken({
+        userId: user.id,
+        username: user.username,
+      });
 
       res.json({
         id: user.id,
         username: user.username,
         email: user.email,
+        token, // 返回 token
       });
     } catch (error: any) {
       if (error.message === "Invalid username or password") {
@@ -138,21 +147,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // 用户登出
+  // 用户登出（JWT 是无状态的，登出主要是客户端删除 token）
   app.post("/api/auth/logout", (req: any, res: any) => {
-    req.session?.destroy((err: any) => {
-      if (err) {
-        console.error("Logout error:", err);
-        return res.status(500).json({ error: "Failed to logout" });
-      }
-      res.clearCookie("connect.sid");
-      res.json({ message: "Logged out successfully" });
+    // JWT 是无状态的，服务端不需要做任何操作
+    // 客户端应该删除存储的 token
+    res.json({ 
+      message: "Logged out successfully",
+      timestamp: new Date().toISOString(),
     });
   });
 
   app.get("/api/projects", requireAuth, async (req, res) => {
     try {
-      const userId = req.session!.userId!;
+      const userId = req.user!.id;
       const projects = await storage.getProjects(userId);
       
       // Ensure all projects have up-to-date impactScore for consistency
@@ -181,7 +188,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Dashboard API - Get dashboard statistics
   app.get("/api/dashboard/stats", requireAuth, async (req, res) => {
     try {
-      const userId = req.session!.userId!;
+      const userId = req.user!.id;
       const projects = await storage.getProjects(userId);
       
       // Calculate statistics
@@ -243,7 +250,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Dashboard API - Get project type distribution
   app.get("/api/dashboard/type-distribution", requireAuth, async (req, res) => {
     try {
-      const userId = req.session!.userId!;
+      const userId = req.user!.id;
       const projects = await storage.getProjects(userId);
       
       // Count projects by type (use customCategory if available, otherwise use type)
@@ -269,42 +276,182 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Dashboard API - Get feedback trend (last 6 months)
+  // Dashboard API - Get feedback trend with time range support
   app.get("/api/dashboard/feedback-trend", requireAuth, async (req, res) => {
     try {
-      const userId = req.session!.userId!;
+      const userId = req.user!.id;
       const projects = await storage.getProjects(userId);
       
-      // Get feedback responses for all projects
-      const trendData: { date: string; score: number }[] = [];
-      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
+      // Get time range from query params (default: 6 months)
+      const timeRange = req.query.range as string || '6months';
+      const projectId = req.query.projectId as string | undefined;
       
-      // For now, calculate average feedback score per month
-      // In production, this would filter by actual response dates
-      for (let i = 0; i < 6; i++) {
-        let monthTotal = 0;
-        let monthCount = 0;
+      // Calculate date range
+      const now = new Date();
+      let startDate: Date;
+      let periodType: 'day' | 'week' | 'month' = 'month';
+      let periodCount: number;
+      
+      switch (timeRange) {
+        case '7days':
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          periodType = 'day';
+          periodCount = 7;
+          break;
+        case '30days':
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          periodType = 'day';
+          periodCount = 30;
+          break;
+        case '3months':
+          startDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+          periodType = 'month';
+          periodCount = 3;
+          break;
+        case '6months':
+          startDate = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+          periodType = 'month';
+          periodCount = 6;
+          break;
+        case '1year':
+          startDate = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+          periodType = 'month';
+          periodCount = 12;
+          break;
+        default:
+          startDate = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+          periodType = 'month';
+          periodCount = 6;
+      }
+      
+      // Filter projects if projectId is specified
+      const targetProjects = projectId 
+        ? projects.filter(p => p.id === projectId)
+        : projects;
+      
+      // Get all survey responses for target projects within date range
+      const allResponses: Array<{ date: Date; score: number; projectId: string }> = [];
         
-        for (const project of projects) {
+      for (const project of targetProjects) {
           try {
-            const feedbackData = await storage.getProjectFeedbackScore(project.id);
-            if (feedbackData.count > 0) {
-              monthTotal += feedbackData.score;
-              monthCount++;
+          const responses = await storage.getSurveyResponses(project.id);
+          for (const response of responses) {
+            if (response.createdAt) {
+              const responseDate = response.createdAt instanceof Date 
+                ? response.createdAt 
+                : new Date(response.createdAt);
+              
+              if (responseDate >= startDate && response.numericValue) {
+                allResponses.push({
+                  date: responseDate,
+                  score: Number(response.numericValue),
+                  projectId: project.id,
+                });
+              }
+            }
             }
           } catch (error) {
-            // Skip if feedback data not available
-          }
+          // Skip if responses not available
+        }
+      }
+      
+      // Group responses by period
+      const trendData: { date: string; score: number; count: number }[] = [];
+      const periodMap = new Map<string, { total: number; count: number }>();
+      
+      for (const response of allResponses) {
+        let periodKey: string;
+        let displayLabel: string;
+        
+        if (periodType === 'day') {
+          const dateStr = response.date.toISOString().split('T')[0];
+          periodKey = dateStr;
+          displayLabel = new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        } else {
+          const year = response.date.getFullYear();
+          const month = response.date.getMonth();
+          periodKey = `${year}-${month}`;
+          displayLabel = new Date(year, month, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
         }
         
-        const avgScore = monthCount > 0 ? monthTotal / monthCount : 0;
+        if (!periodMap.has(periodKey)) {
+          periodMap.set(periodKey, { total: 0, count: 0 });
+        }
+        
+        const period = periodMap.get(periodKey)!;
+        period.total += response.score;
+        period.count += 1;
+      }
+      
+      // Generate all periods in range (even if no data)
+      const periods: string[] = [];
+      if (periodType === 'day') {
+        for (let i = 0; i < periodCount; i++) {
+          const date = new Date(startDate);
+          date.setDate(date.getDate() + i);
+          const dateStr = date.toISOString().split('T')[0];
+          periods.push(dateStr);
+        }
+      } else {
+        for (let i = 0; i < periodCount; i++) {
+          const date = new Date(startDate);
+          date.setMonth(date.getMonth() + i);
+          const year = date.getFullYear();
+          const month = date.getMonth();
+          periods.push(`${year}-${month}`);
+        }
+      }
+      
+      // Build trend data
+      for (const periodKey of periods) {
+        const period = periodMap.get(periodKey);
+        let displayLabel: string;
+        
+        if (periodType === 'day') {
+          displayLabel = new Date(periodKey).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        } else {
+          const [year, month] = periodKey.split('-').map(Number);
+          displayLabel = new Date(year, month, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        }
+        
         trendData.push({
-          date: months[i],
-          score: Math.round(avgScore * 10) / 10,
+          date: displayLabel,
+          score: period && period.count > 0 
+            ? Math.round((period.total / period.count) * 10) / 10 
+            : 0,
+          count: period?.count || 0,
         });
       }
       
-      res.json(trendData);
+      // Calculate statistics
+      const scores = trendData.filter(d => d.count > 0).map(d => d.score);
+      const totalResponses = trendData.reduce((sum, d) => sum + d.count, 0);
+      const avgScore = scores.length > 0 
+        ? scores.reduce((sum, s) => sum + s, 0) / scores.length 
+        : 0;
+      
+      // Calculate trend (comparing first half vs second half)
+      let trend: 'up' | 'down' | 'stable' = 'stable';
+      if (scores.length >= 4) {
+        const firstHalf = scores.slice(0, Math.floor(scores.length / 2));
+        const secondHalf = scores.slice(Math.floor(scores.length / 2));
+        const firstAvg = firstHalf.reduce((sum, s) => sum + s, 0) / firstHalf.length;
+        const secondAvg = secondHalf.reduce((sum, s) => sum + s, 0) / secondHalf.length;
+        const change = secondAvg - firstAvg;
+        
+        if (change > 0.1) trend = 'up';
+        else if (change < -0.1) trend = 'down';
+      }
+      
+      res.json({
+        data: trendData,
+        statistics: {
+          averageScore: Math.round(avgScore * 10) / 10,
+          totalResponses,
+          trend,
+          periodCount: trendData.filter(d => d.count > 0).length,
+        },
+      });
     } catch (error) {
       console.error("Error fetching feedback trend:", error);
       res.status(500).json({ error: "Failed to fetch feedback trend" });
@@ -337,7 +484,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/projects", requireAuth, async (req, res) => {
     try {
-      const userId = req.session!.userId!;
+      const userId = req.user!.id;
       const validation = insertProjectSchema.safeParse({
         ...req.body,
         userId,
@@ -365,14 +512,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/projects/:id", async (req, res) => {
+  app.delete("/api/projects/:id", requireAuth, async (req, res) => {
     try {
-      const deleted = await storage.deleteProject(req.params.id);
+      const userId = req.user!.id;
+      const projectId = req.params.id;
+      
+      // Verify project belongs to user
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      if (project.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized to delete this project" });
+      }
+      
+      const deleted = await storage.deleteProject(projectId);
       if (!deleted) {
         return res.status(404).json({ error: "Project not found" });
       }
       res.status(204).send();
     } catch (error) {
+      console.error("Error deleting project:", error);
       res.status(500).json({ error: "Failed to delete project" });
     }
   });
@@ -612,7 +772,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Goals API
   app.get("/api/goals", requireAuth, async (req, res) => {
     try {
-      const userId = req.session!.userId!;
+      const userId = req.user!.id;
       const goals = await storage.getGoals(userId);
       res.json(goals);
     } catch (error) {
@@ -623,7 +783,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/goals", requireAuth, async (req, res) => {
     try {
-      const userId = req.session!.userId!;
+      const userId = req.user!.id;
       const validation = insertGoalSchema.safeParse({
         ...req.body,
         userId,
@@ -666,7 +826,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Team Members API
   app.get("/api/team-members", requireAuth, async (req, res) => {
     try {
-      const userId = req.session!.userId!;
+      const userId = req.user!.id;
       const members = await storage.getTeamMembers(userId);
       res.json(members);
     } catch (error) {
@@ -677,7 +837,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/team-members", requireAuth, async (req, res) => {
     try {
-      const userId = req.session!.userId!;
+      const userId = req.user!.id;
       const validation = insertTeamMemberSchema.safeParse({
         ...req.body,
         userId,
@@ -822,20 +982,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Surveys API - Get all surveys (projects with questions)
   app.get("/api/surveys", requireAuth, async (req, res) => {
     try {
-      const userId = req.session!.userId!;
+      const userId = req.user!.id;
       const projects = await storage.getProjects(userId);
+      
+      // Import survey analytics utilities
+      const { calculateNPS, calculateSentiment, determineSurveyStatus } = await import('./surveyAnalytics');
       
       // Get surveys (projects that have survey questions)
       const surveys = await Promise.all(
         projects.map(async (project) => {
           const questions = await storage.getSurveyQuestions(project.id);
+          const responses = await storage.getSurveyResponses(project.id);
           const feedbackData = await storage.getProjectFeedbackScore(project.id);
           const qrScans = await storage.getQRScans(project.id);
           
           if (questions.length === 0) return null;
           
-          // Determine status based on responses
-          const status = feedbackData.count >= (questions.length * 10) ? "completed" : "gathering";
+          // Calculate NPS using consistent function
+          const npsData = calculateNPS(responses);
+          
+          // Determine status using consistent function
+          const status = determineSurveyStatus(feedbackData.count, questions.length);
           
           return {
             id: project.id,
@@ -845,9 +1012,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             status,
             responses: feedbackData.count,
             targetResponses: questions.length * 50, // Estimate
-            trustScore: feedbackData.score > 0 ? feedbackData.score : undefined,
-            satisfactionScore: feedbackData.score > 0 ? feedbackData.score : undefined,
-            npsScore: feedbackData.score > 0 ? Math.round((feedbackData.score / 5) * 100 - 50) : undefined,
+            trustScore: feedbackData.score > 0 ? Math.round(feedbackData.score * 10) / 10 : undefined,
+            satisfactionScore: feedbackData.score > 0 ? Math.round(feedbackData.score * 10) / 10 : undefined,
+            npsScore: npsData.totalResponses > 0 ? npsData.score : undefined,
             createdAt: project.createdAt?.toISOString() || new Date().toISOString(),
             completedAt: status === "completed" ? new Date().toISOString() : undefined,
             questions: questions.map(q => q.questionText),
@@ -874,11 +1041,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Project not found" });
       }
 
+      // Import survey analytics utilities
+      const { calculateNPS, calculateSentiment, calculateAverageScore, determineSurveyStatus } = await import('./surveyAnalytics');
+
       const questions = await storage.getSurveyQuestions(projectId);
       const responses = await storage.getSurveyResponses(projectId);
       const feedbackData = await storage.getProjectFeedbackScore(projectId);
 
-      // Calculate question analysis
+      // Calculate question analysis with sentiment breakdown
       const questionAnalysis = questions.map(question => {
         const questionResponses = responses.filter(r => r.questionId === question.id);
         const numericResponses = questionResponses.filter(r => r.numericValue !== null);
@@ -890,41 +1060,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
           answerCounts[answer] = (answerCounts[answer] || 0) + 1;
         });
 
-        const distribution = Object.entries(answerCounts).map(([answer, count]) => ({
-          answer,
-          count,
-          percentage: questionResponses.length > 0 ? (count / questionResponses.length) * 100 : 0,
-        }));
+        const distribution = Object.entries(answerCounts)
+          .map(([answer, count]) => ({
+            answer,
+            count,
+            percentage: questionResponses.length > 0 
+              ? Math.round((count / questionResponses.length) * 100 * 10) / 10 
+              : 0,
+          }))
+          .sort((a, b) => b.count - a.count); // Sort by count descending
 
         const averageRating = numericResponses.length > 0
-          ? numericResponses.reduce((sum, r) => sum + Number(r.numericValue), 0) / numericResponses.length
+          ? calculateAverageScore(questionResponses)
           : undefined;
+
+        // Calculate sentiment for this question
+        const sentimentBreakdown = calculateSentiment(questionResponses);
 
         return {
           question: question.questionText,
           responses: questionResponses.length,
           distribution,
           averageRating,
+          sentimentBreakdown,
         };
       });
 
-      // Calculate NPS breakdown (simplified - based on numeric scores)
-      const numericResponses = responses.filter(r => r.numericValue !== null);
-      const npsScores = numericResponses.map(r => Number(r.numericValue));
-      const promoters = npsScores.filter(s => s >= 4).length;
-      const detractors = npsScores.filter(s => s <= 2).length;
-      const passives = npsScores.length - promoters - detractors;
+      // Calculate NPS using consistent function
+      const npsData = calculateNPS(responses);
+      
+      // Calculate sentiment using consistent function
+      const sentimentData = calculateSentiment(responses);
 
-      const npsScore = npsScores.length > 0
-        ? Math.round(((promoters - detractors) / npsScores.length) * 100)
-        : 0;
-
-      // Calculate sentiment (simplified - based on scores)
-      const positive = npsScores.filter(s => s >= 4).length;
-      const negative = npsScores.filter(s => s <= 2).length;
-      const neutral = npsScores.length - positive - negative;
-
-      const status = feedbackData.count >= (questions.length * 10) ? "completed" : "gathering";
+      // Determine status using consistent function
+      const status = determineSurveyStatus(feedbackData.count, questions.length);
 
       res.json({
         id: projectId,
@@ -935,18 +1104,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         targetResponses: questions.length * 50,
         createdAt: project.createdAt?.toISOString() || new Date().toISOString(),
         completedAt: status === "completed" ? new Date().toISOString() : undefined,
-        trustScore: feedbackData.score > 0 ? feedbackData.score : undefined,
-        satisfactionScore: feedbackData.score > 0 ? feedbackData.score : undefined,
-        npsScore,
+        trustScore: feedbackData.score > 0 ? Math.round(feedbackData.score * 10) / 10 : undefined,
+        satisfactionScore: feedbackData.score > 0 ? Math.round(feedbackData.score * 10) / 10 : undefined,
+        npsScore: npsData.totalResponses > 0 ? npsData.score : 0,
         npsBreakdown: {
-          promoters,
-          passives,
-          detractors,
+          promoters: npsData.breakdown.promoters,
+          passives: npsData.breakdown.passives,
+          detractors: npsData.breakdown.detractors,
         },
         sentimentBreakdown: {
-          positive,
-          neutral,
-          negative,
+          positive: sentimentData.positive,
+          neutral: sentimentData.neutral,
+          negative: sentimentData.negative,
         },
         questionAnalysis,
       });
@@ -1056,6 +1225,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(metric);
     } catch (error) {
       res.status(500).json({ error: "Failed to create category metric" });
+    }
+  });
+
+  // Forecast API
+  app.post("/api/projects/:projectId/forecast", requireAuth, async (req, res) => {
+    try {
+      const projectId = req.params.projectId;
+      const { metricIds, targetYear, scenario } = req.body;
+
+      if (!metricIds || !Array.isArray(metricIds) || metricIds.length === 0) {
+        return res.status(400).json({ error: "metricIds array is required" });
+      }
+
+      if (!targetYear || typeof targetYear !== 'number') {
+        return res.status(400).json({ error: "targetYear is required and must be a number" });
+      }
+
+      const validScenario = ['optimistic', 'realistic', 'pessimistic'].includes(scenario) 
+        ? scenario 
+        : 'realistic';
+
+      // Get all project metrics
+      const allMetrics = await storage.getProjectMetrics(projectId);
+      
+      // Filter to selected metrics
+      const selectedMetrics = allMetrics.filter(m => metricIds.includes(m.id));
+
+      if (selectedMetrics.length === 0) {
+        return res.status(404).json({ error: "No matching metrics found" });
+      }
+
+      // Generate forecasts
+      const { generateForecasts } = await import('./forecast');
+      const forecasts = generateForecasts(selectedMetrics, targetYear, validScenario);
+
+      res.json({ forecasts });
+    } catch (error) {
+      console.error("Error generating forecast:", error);
+      res.status(500).json({ error: "Failed to generate forecast" });
     }
   });
 

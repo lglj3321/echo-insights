@@ -5,6 +5,7 @@ import { ImpactCostMatrix } from "@/components/ImpactCostMatrix";
 import { ProjectTypeChart } from "@/components/ProjectTypeChart";
 import { FeedbackTrendChart } from "@/components/FeedbackTrendChart";
 import { FolderKanban, Users, TrendingUp, Leaf, Loader2 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getQueryFn } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import type { Project } from "@/components/ProjectCard";
@@ -23,10 +24,6 @@ interface TypeDistribution {
   count: number;
 }
 
-interface FeedbackTrend {
-  date: string;
-  score: number;
-}
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -52,12 +49,6 @@ export default function Dashboard() {
     enabled: !!user,
   });
 
-  // Fetch feedback trend
-  const { data: feedbackTrend = [], isLoading: isLoadingTrend } = useQuery<FeedbackTrend[]>({
-    queryKey: ['/api/dashboard/feedback-trend'],
-    queryFn: getQueryFn({ on401: "throw" }),
-    enabled: !!user,
-  });
 
   // Fetch feedback scores for projects
   const { data: projectsWithFeedback } = useQuery({
@@ -92,8 +83,8 @@ export default function Dashboard() {
     enabled: !!user && projects.length > 0,
   });
 
-  // Get recent projects (last 3) with feedback data
-  const recentProjects = projects.slice(0, 3).map(project => {
+  // Get all projects with feedback data for ImpactCostMatrix (use all projects, not just recent)
+  const allProjectsWithData = projects.map(project => {
     const feedbackData = projectsWithFeedback?.find(f => f.projectId === project.id);
     return {
       ...project,
@@ -109,8 +100,28 @@ export default function Dashboard() {
     };
   });
 
+  // Get recent projects (latest 3 by createdAt) with feedback data for display
+  const recentProjects = [...allProjectsWithData]
+    .sort((a, b) => {
+      // Sort by createdAt descending (newest first)
+      const dateA = a.createdAt 
+        ? (a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt))
+        : new Date(0);
+      const dateB = b.createdAt 
+        ? (b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt))
+        : new Date(0);
+      return dateB.getTime() - dateA.getTime();
+    })
+    .slice(0, 3);
+
+  // Get top performing projects by feedback score
+  const topProjects = [...allProjectsWithData]
+    .filter(p => p.feedbackScore !== undefined && p.feedbackScore > 0)
+    .sort((a, b) => (b.feedbackScore || 0) - (a.feedbackScore || 0))
+    .slice(0, 5);
+
   // Loading state
-  const isLoading = isLoadingProjects || isLoadingStats || isLoadingDistribution || isLoadingTrend;
+  const isLoading = isLoadingProjects || isLoadingStats || isLoadingDistribution;
 
   if (isLoading) {
     return (
@@ -175,13 +186,13 @@ export default function Dashboard() {
         <h2 className="text-xl font-semibold mb-4">Analytics Overview</h2>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-1">
-            <ImpactCostMatrix projects={recentProjects} />
+            <ImpactCostMatrix projects={allProjectsWithData} />
           </div>
           <div className="lg:col-span-1">
             <ProjectTypeChart data={typeDistribution} />
           </div>
           <div className="lg:col-span-1">
-            <FeedbackTrendChart data={feedbackTrend} />
+            <FeedbackTrendChart showControls={true} />
           </div>
         </div>
       </section>
@@ -202,6 +213,49 @@ export default function Dashboard() {
             <p>No projects yet. Create your first project to get started!</p>
           </div>
         )}
+      </section>
+
+      <section>
+        <h2 className="text-xl font-semibold mb-4">Top Performing Projects</h2>
+        <Card>
+          <CardHeader>
+            <CardTitle>Top Performing Projects</CardTitle>
+            <p className="text-sm text-muted-foreground">By consumer feedback score</p>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {topProjects.length > 0 ? topProjects.map((project, idx) => (
+                <div
+                  key={project.id}
+                  className="flex items-center justify-between p-3 rounded-md border hover-elevate"
+                  data-testid={`row-top-project-${idx}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <span className="text-sm font-bold text-primary">{idx + 1}</span>
+                    </div>
+                    <div>
+                      <p className="font-medium">{project.title}</p>
+                      <p className="text-xs text-muted-foreground">{project.type}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold font-mono text-lg">
+                      {project.feedbackScore?.toFixed(1)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {project.responseCount} responses
+                    </p>
+                  </div>
+                </div>
+              )) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No projects with feedback yet</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </section>
     </div>
   );

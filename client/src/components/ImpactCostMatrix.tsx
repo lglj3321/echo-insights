@@ -6,12 +6,20 @@ interface ImpactCostMatrixProps {
 }
 
 export function ImpactCostMatrix({ projects }: ImpactCostMatrixProps) {
-  const maxCost = Math.max(...projects.map(p => p.estimatedCost), 1);
-  const maxImpact = Math.max(...projects.map(p => p.co2Saved), 1);
+  // Use impactScore if available, otherwise fall back to co2Saved
+  const projectsWithImpact = projects.map(p => ({
+    ...p,
+    impactValue: p.impactScore !== undefined && p.impactScore !== null 
+      ? Number(p.impactScore) 
+      : (p.co2Saved ? Number(p.co2Saved) : 0),
+  }));
 
-  const getPosition = (project: Project) => ({
+  const maxCost = Math.max(...projectsWithImpact.map(p => p.estimatedCost), 1);
+  const maxImpact = Math.max(...projectsWithImpact.map(p => p.impactValue), 1);
+
+  const getPosition = (project: typeof projectsWithImpact[0]) => ({
     x: (project.estimatedCost / maxCost) * 85 + 5,
-    y: 85 - (project.co2Saved / maxImpact) * 85 + 5,
+    y: 85 - (project.impactValue / maxImpact) * 85 + 5,
   });
 
   const typeColors: Record<string, string> = {
@@ -45,7 +53,7 @@ export function ImpactCostMatrix({ projects }: ImpactCostMatrixProps) {
             <text x="26" y="30" textAnchor="middle" className="text-[3px] fill-muted-foreground">High Impact</text>
             <text x="26" y="34" textAnchor="middle" className="text-[3px] fill-muted-foreground">Low Cost</text>
             
-            {projects.map((project) => {
+            {projectsWithImpact.map((project) => {
               const pos = getPosition(project);
               return (
                 <g key={project.id}>

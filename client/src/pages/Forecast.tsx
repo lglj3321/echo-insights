@@ -1,10 +1,11 @@
 import { useState, useMemo } from "react";
 import { useRoute, Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft,
   TrendingUp,
@@ -21,6 +23,10 @@ import {
   BarChart3,
   Sparkles,
   Loader2,
+  Download,
+  AlertCircle,
+  TrendingDown,
+  Minus,
 } from "lucide-react";
 import {
   LineChart,
@@ -34,7 +40,8 @@ import {
   Area,
   AreaChart,
 } from "recharts";
-import { getQueryFn } from "@/lib/queryClient";
+import { getQueryFn, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { ProjectMetric } from "@shared/schema";
 
 interface MetricOption {
@@ -47,7 +54,21 @@ interface MetricOption {
 
 interface ForecastDataPoint {
   period: string;
-  [key: string]: number | string;
+  value: number;
+  lowerBound: number;
+  upperBound: number;
+  confidence: number;
+}
+
+interface ForecastResult {
+  metricId: string;
+  metricName: string;
+  unit: string;
+  currentValue: number;
+  forecast: ForecastDataPoint[];
+  growthRate: number;
+  projectedValue: number;
+  scenario: 'optimistic' | 'realistic' | 'pessimistic';
 }
 
 // Color palette for metrics
@@ -65,11 +86,12 @@ const metricColors = [
 export default function Forecast() {
   const [, params] = useRoute("/project/:id/forecast");
   const projectId = params?.id || "1";
+  const { toast } = useToast();
 
   const [selectedMetrics, setSelectedMetrics] = useState<Set<string>>(new Set());
   const [targetYear, setTargetYear] = useState<string>("2030");
-  const [forecastGenerated, setForecastGenerated] = useState(false);
-  const [forecastData, setForecastData] = useState<ForecastDataPoint[]>([]);
+  const [scenario, setScenario] = useState<'optimistic' | 'realistic' | 'pessimistic'>('realistic');
+  const [forecastResults, setForecastResults] = useState<ForecastResult[]>([]);
 
   // Fetch project metrics from API
   const { data: projectMetrics = [], isLoading: isLoadingMetrics } = useQuery<ProjectMetric[]>({
@@ -118,79 +140,117 @@ export default function Forecast() {
     setSelectedMetrics(newSelected);
   };
 
-  const generateForecast = () => {
-    const currentYear = new Date().getFullYear();
-    const targetYearNum = parseInt(targetYear);
-    const quarters = (targetYearNum - currentYear) * 4;
-
-    const data: ForecastDataPoint[] = [];
-
-    // Generate forecast for each quarter
-    for (let i = 0; i <= quarters; i++) {
-      const year = currentYear + Math.floor(i / 4);
-      const quarter = (i % 4) + 1;
-      const period = `Q${quarter} ${year}`;
-
-      const dataPoint: ForecastDataPoint = { period };
-
-      selectedMetrics.forEach(metricId => {
-        const metric = availableMetrics.find(m => m.id === metricId);
-        if (metric && metric.currentValue > 0) {
-          // Determine growth rate based on metric type
-          let baseGrowthRate = 1.05; // Default 5% growth per quarter
-          
-          const metricName = metric.name.toLowerCase();
-          
-          // Different growth rates for different metric types
-          if (metricName.includes("co2") || metricName.includes("carbon") || metricName.includes("emission")) {
-            // Emissions reduction - positive growth means more reduction
-            baseGrowthRate = 1.08; // 8% improvement per quarter
-          } else if (metricName.includes("recycl") || metricName.includes("usage") || metricName.includes("%")) {
-            // Percentage metrics - slower growth, capped at 100%
-            baseGrowthRate = 1.03; // 3% growth per quarter
-          } else if (metricName.includes("cost") || metricName.includes("saving")) {
-            // Cost savings - moderate growth
-            baseGrowthRate = 1.06; // 6% growth per quarter
-          } else if (metricName.includes("water") || metricName.includes("energy")) {
-            // Resource metrics - steady growth
-            baseGrowthRate = 1.05; // 5% growth per quarter
-          }
-          
-          // Add some randomness for realism (volatility)
-          const volatility = 1 + (Math.random() * 0.1 - 0.05); // ±5% volatility
-          
-          // Add seasonality (slight variation by quarter)
-          const seasonality = 1 + Math.sin(i * Math.PI / 2) * 0.05; // ±5% seasonality
-          
-          // Calculate projected value
-          const baseGrowth = Math.pow(baseGrowthRate, i / 4);
-          let projectedValue = metric.currentValue * baseGrowth * volatility * seasonality;
-          
-          // Cap percentage metrics at 100%
-          if (metric.unit.includes("%") || metricName.includes("%")) {
-            projectedValue = Math.min(projectedValue, 100);
-          }
-          
-          // Ensure non-negative values
-          projectedValue = Math.max(0, projectedValue);
-          
-          // Store values
-          dataPoint[metric.name] = parseFloat(projectedValue.toFixed(2));
-          dataPoint[`${metric.name}_lower`] = parseFloat((projectedValue * 0.85).toFixed(2));
-          dataPoint[`${metric.name}_upper`] = parseFloat((projectedValue * 1.15).toFixed(2));
+  // Generate forecast using backend API
+  const generateForecastMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest(
+        'POST',
+        `/api/projects/${projectId}/forecast`,
+        {
+          metricIds: Array.from(selectedMetrics),
+          targetYear: parseInt(targetYear),
+          scenario,
         }
+      );
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      setForecastResults(data.forecasts || []);
+      toast({
+        title: "Forecast Generated",
+        description: `Successfully generated ${data.forecasts?.length || 0} forecast(s)`,
       });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Forecast Generation Failed",
+        description: error.message || "Failed to generate forecast",
+        variant: "destructive",
+      });
+    },
+  });
 
-      data.push(dataPoint);
+  const generateForecast = () => {
+    if (selectedMetrics.size === 0) {
+      toast({
+        title: "No Metrics Selected",
+        description: "Please select at least one metric to forecast",
+        variant: "destructive",
+      });
+      return;
     }
-
-    setForecastData(data);
-    setForecastGenerated(true);
+    generateForecastMutation.mutate();
   };
 
   const resetForecast = () => {
-    setForecastGenerated(false);
-    setForecastData([]);
+    setForecastResults([]);
+  };
+
+  // Export forecast data to CSV
+  const exportToCSV = () => {
+    if (forecastResults.length === 0) return;
+
+    const headers = ['Period', ...forecastResults.map(f => `${f.metricName} (${f.unit})`)];
+    const rows: string[][] = [headers];
+
+    // Get all unique periods
+    const allPeriods = new Set<string>();
+    forecastResults.forEach(result => {
+      result.forecast.forEach(point => allPeriods.add(point.period));
+    });
+    const sortedPeriods = Array.from(allPeriods).sort();
+
+    // Build rows
+    sortedPeriods.forEach(period => {
+      const row = [period];
+      forecastResults.forEach(result => {
+        const point = result.forecast.find(p => p.period === period);
+        row.push(point ? point.value.toString() : '');
+      });
+      rows.push(row);
+    });
+
+    // Convert to CSV
+    const csvContent = rows.map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `forecast-${projectId}-${scenario}-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Export Successful",
+      description: "Forecast data exported to CSV",
+    });
+  };
+
+  // Export forecast data to JSON
+  const exportToJSON = () => {
+    if (forecastResults.length === 0) return;
+
+    const data = {
+      projectId,
+      scenario,
+      targetYear: parseInt(targetYear),
+      generatedAt: new Date().toISOString(),
+      forecasts: forecastResults,
+    };
+
+    const jsonContent = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonContent], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `forecast-${projectId}-${scenario}-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Export Successful",
+      description: "Forecast data exported to JSON",
+    });
   };
 
   const selectedMetricsArray = availableMetrics.filter(m => selectedMetrics.has(m.id));
@@ -262,16 +322,16 @@ export default function Forecast() {
               <BarChart3 className="h-5 w-5" />
               Select Metrics
             </CardTitle>
+            <CardDescription>
+              Choose which metrics you want to forecast
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Choose which metrics you want to forecast
-            </p>
             <div className="space-y-3">
               {availableMetrics.map((metric) => (
                 <div
                   key={metric.id}
-                  className="flex items-start gap-3 p-3 rounded-lg border hover-elevate"
+                  className="flex items-start gap-3 p-3 rounded-lg border hover:bg-accent transition-colors"
                   data-testid={`metric-option-${metric.id}`}
                 >
                   <Checkbox
@@ -300,10 +360,15 @@ export default function Forecast() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <div className="flex items-center justify-between flex-wrap gap-4">
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Forecast Configuration
-              </CardTitle>
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Forecast Configuration
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Configure forecast parameters and scenario
+                </CardDescription>
+              </div>
               <Badge variant="outline">
                 {selectedMetrics.size} metric{selectedMetrics.size !== 1 ? 's' : ''} selected
               </Badge>
@@ -331,29 +396,100 @@ export default function Forecast() {
 
             <Separator />
 
+            <div className="space-y-3">
+              <Label>Forecast Scenario</Label>
+              <RadioGroup value={scenario} onValueChange={(value) => setScenario(value as typeof scenario)}>
+                <div className="flex items-center space-x-2 p-3 rounded-lg border">
+                  <RadioGroupItem value="optimistic" id="scenario-optimistic" />
+                  <Label htmlFor="scenario-optimistic" className="flex-1 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-green-600" />
+                      <div>
+                        <p className="font-medium">Optimistic</p>
+                        <p className="text-xs text-muted-foreground">Higher growth expectations</p>
+                      </div>
+                    </div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2 p-3 rounded-lg border">
+                  <RadioGroupItem value="realistic" id="scenario-realistic" />
+                  <Label htmlFor="scenario-realistic" className="flex-1 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <Minus className="h-4 w-4 text-blue-600" />
+                      <div>
+                        <p className="font-medium">Realistic</p>
+                        <p className="text-xs text-muted-foreground">Most likely outcome</p>
+                      </div>
+                    </div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2 p-3 rounded-lg border">
+                  <RadioGroupItem value="pessimistic" id="scenario-pessimistic" />
+                  <Label htmlFor="scenario-pessimistic" className="flex-1 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <TrendingDown className="h-4 w-4 text-amber-600" />
+                      <div>
+                        <p className="font-medium">Pessimistic</p>
+                        <p className="text-xs text-muted-foreground">Conservative estimates</p>
+                      </div>
+                    </div>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            <Separator />
+
             <div className="flex gap-2">
               <Button
                 onClick={generateForecast}
-                disabled={selectedMetrics.size === 0}
+                disabled={selectedMetrics.size === 0 || generateForecastMutation.isPending}
                 data-testid="button-generate-forecast"
               >
-                <Sparkles className="h-4 w-4 mr-2" />
-                Generate Forecast
+                {generateForecastMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Generate Forecast
+                  </>
+                )}
               </Button>
-              {forecastGenerated && (
-                <Button
-                  variant="outline"
-                  onClick={resetForecast}
-                  data-testid="button-reset-forecast"
-                >
-                  Reset
-                </Button>
+              {forecastResults.length > 0 && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={resetForecast}
+                    data-testid="button-reset-forecast"
+                  >
+                    Reset
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={exportToCSV}
+                    data-testid="button-export-csv"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export CSV
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={exportToJSON}
+                    data-testid="button-export-json"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export JSON
+                  </Button>
+                </>
               )}
             </div>
 
             {selectedMetrics.size === 0 && (
               <div className="text-center py-8 text-muted-foreground border rounded-lg">
-                <TrendingUp className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <AlertCircle className="h-12 w-12 mx-auto mb-2 opacity-50" />
                 <p>Select at least one metric to generate a forecast</p>
               </div>
             )}
@@ -361,113 +497,177 @@ export default function Forecast() {
         </Card>
       </div>
 
-      {forecastGenerated && forecastData.length > 0 && (
+      {forecastResults.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Forecast Results
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Projected values from {new Date().getFullYear()} to {targetYear} with confidence intervals
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  Forecast Results ({scenario.charAt(0).toUpperCase() + scenario.slice(1)} Scenario)
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Projected values from {new Date().getFullYear()} to {targetYear} with confidence intervals
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-8">
-              {selectedMetricsArray.map((metric) => (
-                <div key={metric.id} className="space-y-3" data-testid={`forecast-chart-${metric.id}`}>
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-4 h-4 rounded-full"
-                      style={{ backgroundColor: metric.color }}
-                    />
-                    <h3 className="font-semibold">{metric.name}</h3>
-                    <Badge variant="secondary" className="ml-auto">
-                      {metric.unit}
-                    </Badge>
-                  </div>
-                  
-                  <ResponsiveContainer width="100%" height={300}>
-                    <AreaChart data={forecastData}>
-                      <defs>
-                        <linearGradient id={`gradient-${metric.id}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={metric.color} stopOpacity={0.3} />
-                          <stop offset="95%" stopColor={metric.color} stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis
-                        dataKey="period"
-                        tick={{ fontSize: 12 }}
-                        interval="preserveStartEnd"
-                        className="text-muted-foreground"
-                      />
-                      <YAxis
-                        tick={{ fontSize: 12 }}
-                        className="text-muted-foreground"
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "hsl(var(--card))",
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: "8px",
-                        }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey={`${metric.name}_upper`}
-                        stroke="none"
-                        fill={metric.color}
-                        fillOpacity={0.1}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey={`${metric.name}_lower`}
-                        stroke="none"
-                        fill={metric.color}
-                        fillOpacity={0.1}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey={metric.name}
-                        stroke={metric.color}
-                        strokeWidth={2}
-                        dot={{ fill: metric.color, r: 3 }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
+            <Tabs defaultValue="charts" className="space-y-6">
+              <TabsList>
+                <TabsTrigger value="charts">Charts</TabsTrigger>
+                <TabsTrigger value="summary">Summary</TabsTrigger>
+              </TabsList>
 
-                  <div className="grid grid-cols-3 gap-4 text-sm">
-                    <div className="text-center p-3 rounded-lg bg-muted">
-                      <p className="text-muted-foreground mb-1">Current Value</p>
-                      <p className="font-bold font-mono">
-                        {metric.currentValue} {metric.unit}
-                      </p>
+              <TabsContent value="charts" className="space-y-8">
+                {forecastResults.map((result) => {
+                  const metric = availableMetrics.find(m => m.id === result.metricId);
+                  const chartData = result.forecast.map(point => ({
+                    period: point.period,
+                    value: point.value,
+                    lowerBound: point.lowerBound,
+                    upperBound: point.upperBound,
+                  }));
+
+                  return (
+                    <div key={result.metricId} className="space-y-3" data-testid={`forecast-chart-${result.metricId}`}>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-4 h-4 rounded-full"
+                          style={{ backgroundColor: metric?.color || '#666' }}
+                        />
+                        <h3 className="font-semibold">{result.metricName}</h3>
+                        <Badge variant="secondary" className="ml-auto">
+                          {result.unit}
+                        </Badge>
+                      </div>
+                      
+                      <ResponsiveContainer width="100%" height={300}>
+                        <AreaChart data={chartData}>
+                          <defs>
+                            <linearGradient id={`gradient-${result.metricId}`} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor={metric?.color || '#666'} stopOpacity={0.3} />
+                              <stop offset="95%" stopColor={metric?.color || '#666'} stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis
+                            dataKey="period"
+                            tick={{ fontSize: 12 }}
+                            interval="preserveStartEnd"
+                            className="text-muted-foreground"
+                          />
+                          <YAxis
+                            tick={{ fontSize: 12 }}
+                            className="text-muted-foreground"
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "hsl(var(--card))",
+                              border: "1px solid hsl(var(--border))",
+                              borderRadius: "8px",
+                            }}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="upperBound"
+                            stroke="none"
+                            fill={metric?.color || '#666'}
+                            fillOpacity={0.1}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="lowerBound"
+                            stroke="none"
+                            fill={metric?.color || '#666'}
+                            fillOpacity={0.1}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="value"
+                            stroke={metric?.color || '#666'}
+                            strokeWidth={2}
+                            fill={`url(#gradient-${result.metricId})`}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+
+                      <div className="grid grid-cols-4 gap-4 text-sm">
+                        <div className="text-center p-3 rounded-lg bg-muted">
+                          <p className="text-muted-foreground mb-1">Current Value</p>
+                          <p className="font-bold font-mono">
+                            {result.currentValue.toFixed(2)} {result.unit}
+                          </p>
+                        </div>
+                        <div className="text-center p-3 rounded-lg bg-muted">
+                          <p className="text-muted-foreground mb-1">Projected ({targetYear})</p>
+                          <p className="font-bold font-mono" style={{ color: metric?.color }}>
+                            {result.projectedValue.toFixed(2)} {result.unit}
+                          </p>
+                        </div>
+                        <div className="text-center p-3 rounded-lg bg-muted">
+                          <p className="text-muted-foreground mb-1">Growth Rate</p>
+                          <p className="font-bold font-mono text-primary">
+                            {result.growthRate > 0 ? '+' : ''}{result.growthRate.toFixed(1)}%
+                          </p>
+                        </div>
+                        <div className="text-center p-3 rounded-lg bg-muted">
+                          <p className="text-muted-foreground mb-1">Confidence</p>
+                          <p className="font-bold font-mono">
+                            {result.forecast[0]?.confidence.toFixed(0) || 85}%
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-center p-3 rounded-lg bg-muted">
-                      <p className="text-muted-foreground mb-1">Projected ({targetYear})</p>
-                      <p className="font-bold font-mono" style={{ color: metric.color }}>
-                        {(() => {
-                          const value = forecastData[forecastData.length - 1][metric.name];
-                          if (typeof value === 'number') {
-                            return value.toFixed(2);
-                          }
-                          return String(value);
-                        })()} {metric.unit}
-                      </p>
-                    </div>
-                    <div className="text-center p-3 rounded-lg bg-muted">
-                      <p className="text-muted-foreground mb-1">Growth Rate</p>
-                      <p className="font-bold font-mono text-primary">
-                        {metric.currentValue > 0 
-                          ? (((Number(forecastData[forecastData.length - 1][metric.name]) / metric.currentValue - 1) * 100)).toFixed(1)
-                          : "0.0"}%
-                      </p>
-                    </div>
-                  </div>
+                  );
+                })}
+              </TabsContent>
+
+              <TabsContent value="summary">
+                <div className="space-y-4">
+                  {forecastResults.map((result) => {
+                    const metric = availableMetrics.find(m => m.id === result.metricId);
+                    return (
+                      <Card key={result.metricId}>
+                        <CardHeader>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-4 h-4 rounded-full"
+                              style={{ backgroundColor: metric?.color || '#666' }}
+                            />
+                            <CardTitle className="text-lg">{result.metricName}</CardTitle>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                              <p className="text-sm text-muted-foreground">Current</p>
+                              <p className="text-2xl font-bold">{result.currentValue.toFixed(2)} {result.unit}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-muted-foreground">Projected</p>
+                              <p className="text-2xl font-bold" style={{ color: metric?.color }}>
+                                {result.projectedValue.toFixed(2)} {result.unit}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-muted-foreground">Growth</p>
+                              <p className="text-2xl font-bold text-primary">
+                                {result.growthRate > 0 ? '+' : ''}{result.growthRate.toFixed(1)}%
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-muted-foreground">Data Points</p>
+                              <p className="text-2xl font-bold">{result.forecast.length}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       )}

@@ -31,6 +31,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Search, RefreshCw, Loader2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -56,6 +66,8 @@ export default function Projects() {
   const [isClassifying, setIsClassifying] = useState(false);
   const [detectedCategory, setDetectedCategory] = useState<string | null>(null);
   const [classificationConfidence, setClassificationConfidence] = useState<number>(0);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   // Fetch projects from API (不需要userId参数，后端从session获取)
   const { data: projects = [], isLoading: isLoadingProjects, error: projectsError } = useQuery<Project[]>({
@@ -329,9 +341,10 @@ export default function Projects() {
     }
 
     // Combine AI metrics and custom metrics into unified list
+    // For AI metrics, use defaultValue as the actual value, and unit as the unit
     const aiAsMetrics: MetricItem[] = selectedAIMetrics.map((m) => ({
       metricName: m.metricName,
-      value: m.value,
+      value: `${m.defaultValue} ${m.unit}`, // Combine default value and unit
       source: "user" as const,
     }));
 
@@ -626,17 +639,31 @@ export default function Projects() {
       // Create metrics
       if (pendingMetrics.length > 0) {
         await Promise.all(
-          pendingMetrics.map((metric) =>
-            apiRequest("POST", `/api/projects/${projectId}/metrics`, metric)
-          )
+          pendingMetrics.map((metric) => {
+            // Parse value and unit from the metric value string
+            // Format: "75 %" or "5000 kg" etc.
+            const valueStr = metric.value || "";
+            const parts = valueStr.trim().split(/\s+/);
+            const numericValue = parts[0] || "";
+            const unit = parts.slice(1).join(" ") || null;
+            
+            return apiRequest("POST", `/api/projects/${projectId}/metrics`, {
+              metricName: metric.metricName,
+              value: numericValue, // Store just the numeric value
+              unit: unit, // Store the unit separately
+              source: metric.source || "user",
+            });
+          })
         );
       }
       
       return { projectId, projectTitle: projectPayload.title, metricsCount: pendingMetrics.length };
     },
     onSuccess: async ({ projectId, projectTitle, metricsCount }) => {
-      // Invalidate projects cache (不需要userId参数，后端从session获取)
+      // Invalidate projects cache and related queries (不需要userId参数，后端从session获取)
       await queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      // Also invalidate dashboard stats and related queries to ensure Dashboard updates
+      await queryClient.invalidateQueries({ queryKey: ['/api/dashboard'] });
       
       toast({
         title: "Project Created Successfully",
@@ -672,6 +699,49 @@ export default function Projects() {
       return;
     }
     createProjectMutation.mutate();
+  };
+
+  // Delete project mutation
+  const deleteProjectMutation = useMutation({
+    mutationFn: async (projectId: string) => {
+      const response = await apiRequest("DELETE", `/api/projects/${projectId}`);
+      return response;
+    },
+    onSuccess: async () => {
+      // Invalidate projects cache and related queries
+      await queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/dashboard'] });
+      
+      toast({
+        title: "Project Deleted",
+        description: "The project has been deleted successfully.",
+      });
+      
+      setIsDeleteDialogOpen(false);
+      setProjectToDelete(null);
+    },
+    onError: (error: any) => {
+      console.error("Failed to delete project:", error);
+      toast({
+        title: "Error Deleting Project",
+        description: error.message || "Failed to delete project. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteClick = (projectId: string) => {
+    const project = projects.find(p => p.id === projectId);
+    if (project) {
+      setProjectToDelete(project);
+      setIsDeleteDialogOpen(true);
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    if (projectToDelete) {
+      deleteProjectMutation.mutate(projectToDelete.id);
+    }
   };
 
   return (
@@ -771,7 +841,11 @@ export default function Projects() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredProjects.map((project) => (
-            <ProjectCard key={project.id} project={project} />
+            <ProjectCard 
+              key={project.id} 
+              project={project} 
+              onDelete={handleDeleteClick}
+            />
           ))}
         </div>
       )}
@@ -815,6 +889,38 @@ export default function Projects() {
         onCancel={handleCancelProject}
         onFinalize={handleFinalizeProject}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Project</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{projectToDelete?.title}"? This action cannot be undone and will permanently delete the project and all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteProjectMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={deleteProjectMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete"
+            >
+              {deleteProjectMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

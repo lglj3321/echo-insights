@@ -22,14 +22,24 @@ export default function Login() {
       const res = await apiRequest("POST", "/api/auth/login", data);
       return res.json();
     },
-    onSuccess: () => {
-      // 刷新用户信息
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    onSuccess: async (data) => {
+      // 保存 token 到 localStorage
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+      }
+      
+      // 刷新用户信息并等待完成
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
+      
       toast({
         title: "Login successful",
         description: "Welcome back!",
       });
-      navigate("/");
+      
+      setTimeout(() => {
+        navigate("/");
+      }, 100);
     },
     onError: (error: any) => {
       toast({
@@ -45,14 +55,20 @@ export default function Login() {
       const res = await apiRequest("POST", "/api/auth/register", data);
       return res.json();
     },
-    onSuccess: () => {
-      // 刷新用户信息
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    onSuccess: async (data) => {
+      // 注册成功后，不保存 token，不自动登录
+      // 显示成功消息，然后切换到登录模式
       toast({
         title: "Registration successful",
-        description: "Account created successfully!",
+        description: "Account created successfully! Please login to continue.",
       });
-      navigate("/");
+      
+      // 切换到登录模式
+      setIsLogin(true);
+      // 清空密码字段，保留用户名（方便用户直接登录）
+      setPassword("");
+      // 清空邮箱字段
+      setEmail("");
     },
     onError: (error: any) => {
       toast({

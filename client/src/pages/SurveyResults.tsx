@@ -118,15 +118,27 @@ export default function SurveyResults() {
   // Use real question analysis from API
   const questionAnalysis = survey.questionAnalysis || [];
 
+  // Helper to convert 1-5 scale to 0-10 scale for NPS classification
+  const convertToNPSScale = (score: number): number => {
+    // If score is on 1-5 scale, convert to 0-10 scale
+    if (score >= 1 && score <= 5) {
+      return (score - 1) * 2 + 2; // Map: 5->10, 4->8, 3->6, 2->4, 1->2
+    }
+    // If already on 0-10 scale, use as is
+    return Math.max(0, Math.min(10, score));
+  };
+
   const getNPSCategory = (score: number): string => {
-    if (score >= 9) return "Promoter";
-    if (score >= 7) return "Passive";
+    const npsScore = convertToNPSScale(score);
+    if (npsScore >= 9) return "Promoter";
+    if (npsScore >= 7) return "Passive";
     return "Detractor";
   };
 
   const getNPSColor = (score: number): string => {
-    if (score >= 9) return "text-primary";
-    if (score >= 7) return "text-chart-2";
+    const npsScore = convertToNPSScale(score);
+    if (npsScore >= 9) return "text-primary";
+    if (npsScore >= 7) return "text-chart-2";
     return "text-destructive";
   };
 
@@ -256,31 +268,37 @@ export default function SurveyResults() {
                 <div className="text-center p-4 rounded-lg border border-primary bg-primary/5">
                   <ThumbsUp className="h-6 w-6 mx-auto mb-2 text-primary" />
                   <p className="text-2xl font-bold font-mono text-primary">
-                    {Math.round((survey.npsBreakdown.promoters / survey.totalResponses) * 100)}%
+                    {survey.totalResponses > 0 
+                      ? Math.round((survey.npsBreakdown.promoters / survey.totalResponses) * 100) 
+                      : 0}%
                   </p>
                   <p className="text-sm text-muted-foreground">Promoters (9-10)</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {survey.npsBreakdown.promoters} responses
+                    {survey.npsBreakdown.promoters} {survey.npsBreakdown.promoters === 1 ? 'response' : 'responses'}
                   </p>
                 </div>
                 <div className="text-center p-4 rounded-lg border bg-muted">
                   <Minus className="h-6 w-6 mx-auto mb-2 text-chart-2" />
                   <p className="text-2xl font-bold font-mono text-chart-2">
-                    {Math.round((survey.npsBreakdown.passives / survey.totalResponses) * 100)}%
+                    {survey.totalResponses > 0 
+                      ? Math.round((survey.npsBreakdown.passives / survey.totalResponses) * 100) 
+                      : 0}%
                   </p>
                   <p className="text-sm text-muted-foreground">Passives (7-8)</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {survey.npsBreakdown.passives} responses
+                    {survey.npsBreakdown.passives} {survey.npsBreakdown.passives === 1 ? 'response' : 'responses'}
                   </p>
                 </div>
                 <div className="text-center p-4 rounded-lg border border-destructive bg-destructive/5">
                   <ThumbsDown className="h-6 w-6 mx-auto mb-2 text-destructive" />
                   <p className="text-2xl font-bold font-mono text-destructive">
-                    {Math.round((survey.npsBreakdown.detractors / survey.totalResponses) * 100)}%
+                    {survey.totalResponses > 0 
+                      ? Math.round((survey.npsBreakdown.detractors / survey.totalResponses) * 100) 
+                      : 0}%
                   </p>
                   <p className="text-sm text-muted-foreground">Detractors (0-6)</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {survey.npsBreakdown.detractors} responses
+                    {survey.npsBreakdown.detractors} {survey.npsBreakdown.detractors === 1 ? 'response' : 'responses'}
                   </p>
                 </div>
               </div>
@@ -293,7 +311,13 @@ export default function SurveyResults() {
                   <span className="text-2xl font-bold font-mono text-chart-2">{survey.npsScore}</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Calculation: % Promoters ({Math.round((survey.npsBreakdown.promoters / survey.totalResponses) * 100)}%) - % Detractors ({Math.round((survey.npsBreakdown.detractors / survey.totalResponses) * 100)}%) = {survey.npsScore}
+                  {survey.totalResponses > 0 ? (
+                    <>
+                      Calculation: % Promoters ({Math.round((survey.npsBreakdown.promoters / survey.totalResponses) * 100)}%) - % Detractors ({Math.round((survey.npsBreakdown.detractors / survey.totalResponses) * 100)}%) = {survey.npsScore}
+                    </>
+                  ) : (
+                    'No responses yet'
+                  )}
                 </p>
               </div>
             </CardContent>

@@ -255,17 +255,23 @@ export default function Feedback() {
                   </div>
                   <div className="text-center p-3 rounded-lg bg-muted">
                     <TrendingUp className="h-5 w-5 mx-auto mb-1 text-primary" />
-                    <p className="text-2xl font-bold font-mono text-primary">{survey.trustScore}</p>
+                    <p className="text-2xl font-bold font-mono text-primary">
+                      {survey.trustScore !== undefined ? survey.trustScore.toFixed(1) : 'N/A'}
+                    </p>
                     <p className="text-xs text-muted-foreground">Trust Score</p>
                   </div>
                   <div className="text-center p-3 rounded-lg bg-muted">
                     <BarChart3 className="h-5 w-5 mx-auto mb-1 text-chart-3" />
-                    <p className="text-2xl font-bold font-mono text-chart-3">{survey.satisfactionScore}</p>
+                    <p className="text-2xl font-bold font-mono text-chart-3">
+                      {survey.satisfactionScore !== undefined ? survey.satisfactionScore.toFixed(1) : 'N/A'}
+                    </p>
                     <p className="text-xs text-muted-foreground">Satisfaction</p>
                   </div>
                   <div className="text-center p-3 rounded-lg bg-muted">
                     <MessageSquare className="h-5 w-5 mx-auto mb-1 text-chart-2" />
-                    <p className="text-2xl font-bold font-mono text-chart-2">{survey.npsScore}</p>
+                    <p className="text-2xl font-bold font-mono text-chart-2">
+                      {survey.npsScore !== undefined ? survey.npsScore : 'N/A'}
+                    </p>
                     <p className="text-xs text-muted-foreground">NPS Score</p>
                   </div>
                 </div>

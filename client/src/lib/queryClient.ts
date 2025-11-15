@@ -12,12 +12,33 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  // 从 localStorage 读取 token
+  const token = localStorage.getItem("token");
+  
+  const headers: HeadersInit = {};
+  if (data) {
+    headers["Content-Type"] = "application/json";
+  }
+  
+  // 如果有 token，添加到 Authorization header
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
+
+  // 如果返回 401，清除 token 并重定向到登录页
+  if (res.status === 401) {
+    localStorage.removeItem("token");
+    if (window.location.pathname !== "/login") {
+      window.location.href = "/login";
+    }
+  }
 
   await throwIfResNotOk(res);
   return res;
@@ -49,9 +70,29 @@ export const getQueryFn: <T>(options: {
       url = queryKey.join("/") as string;
     }
 
+    // 从 localStorage 读取 token
+    const token = localStorage.getItem("token");
+    
+    const headers: HeadersInit = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
     const res = await fetch(url, {
+      headers,
       credentials: "include",
     });
+
+    // 如果返回 401，清除 token
+    if (res.status === 401) {
+      localStorage.removeItem("token");
+      if (unauthorizedBehavior === "returnNull") {
+        return null;
+      }
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+    }
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
       return null;

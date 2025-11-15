@@ -1,4 +1,4 @@
-import { Home, BarChart3, FolderKanban, Settings, Target, Users, ChevronUp, LogOut, GitCompare, MessageSquare } from "lucide-react";
+import { Home, FolderKanban, Settings, Target, Users, ChevronUp, LogOut, GitCompare, MessageSquare } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -44,11 +44,6 @@ const menuItems = [
     icon: MessageSquare,
   },
   {
-    title: "Analytics",
-    url: "/analytics",
-    icon: BarChart3,
-  },
-  {
     title: "Goals & Targets",
     url: "/goals",
     icon: Target,
@@ -73,6 +68,8 @@ export function AppSidebar() {
   const displayEmail = (user as any)?.email || "";
 
   const handleSignOut = () => {
+    // 直接登出，不需要确认（符合现代UX实践）
+    // 如果将来需要确认，可以添加确认对话框
     logout();
   };
 
@@ -108,7 +105,11 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground" data-testid="button-user-menu">
+                <button
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring disabled:pointer-events-none disabled:opacity-50 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                  data-testid="button-user-menu"
+                  type="button"
+                >
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="text-xs bg-primary/10 text-primary">
                       {displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
@@ -121,9 +122,14 @@ export function AppSidebar() {
                     )}
                   </div>
                   <ChevronUp className="ml-auto h-4 w-4" />
-                </SidebarMenuButton>
+                </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" className="w-56">
+              <DropdownMenuContent 
+                side="top" 
+                align="end"
+                sideOffset={8}
+                className="w-56 z-[100]"
+              >
                 <DropdownMenuLabel>
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium">{displayName}</p>
@@ -140,8 +146,13 @@ export function AppSidebar() {
                   </a>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut} disabled={isLoggingOut} data-testid="button-sign-out">
-                  <LogOut className="mr-2 h-4 w-4" />
+                <DropdownMenuItem 
+                  onClick={handleSignOut} 
+                  disabled={isLoggingOut} 
+                  data-testid="button-sign-out"
+                  className={isLoggingOut ? "opacity-50 cursor-not-allowed" : ""}
+                >
+                  <LogOut className={`mr-2 h-4 w-4 ${isLoggingOut ? "animate-pulse" : ""}`} />
                   {isLoggingOut ? "Signing out..." : "Sign Out"}
                 </DropdownMenuItem>
               </DropdownMenuContent>

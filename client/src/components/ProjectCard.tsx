@@ -2,7 +2,13 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Star, DollarSign, Leaf, TrendingUp, Award } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Star, DollarSign, Leaf, TrendingUp, Award, MoreVertical, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 
 export interface Project {
@@ -22,6 +28,7 @@ export interface Project {
 
 interface ProjectCardProps {
   project: Project;
+  onDelete?: (projectId: string) => void;
 }
 
 const getScoreColor = (score: number): string => {
@@ -40,7 +47,7 @@ const typeColors: Record<string, string> = {
   Logistics: "bg-muted text-muted-foreground",
 };
 
-export function ProjectCard({ project }: ProjectCardProps) {
+export function ProjectCard({ project, onDelete }: ProjectCardProps) {
   const displayCategory = project.customCategory || project.type;
   
   return (
@@ -48,9 +55,39 @@ export function ProjectCard({ project }: ProjectCardProps) {
       <CardHeader>
         <div className="flex items-start justify-between gap-2 flex-wrap">
           <CardTitle className="text-lg">{project.title}</CardTitle>
-          <Badge className={typeColors[project.type] || "bg-muted"} data-testid={`badge-type-${project.id}`}>
-            {displayCategory}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge className={typeColors[project.type] || "bg-muted"} data-testid={`badge-type-${project.id}`}>
+              {displayCategory}
+            </Badge>
+            {onDelete && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={(e) => e.stopPropagation()}
+                    data-testid={`button-menu-${project.id}`}
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(project.id);
+                    }}
+                    className="text-destructive focus:text-destructive"
+                    data-testid={`button-delete-${project.id}`}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
         <p className="text-sm text-muted-foreground mt-2">{project.description}</p>
         
