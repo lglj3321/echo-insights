@@ -3,7 +3,7 @@
  * Provides consistent calculation of NPS, sentiment, and survey statistics
  */
 
-import type { SurveyResponse } from "../shared/schema.ts";
+import type { SurveyResponse } from "../shared/schema";
 
 export interface NPSCalculation {
   score: number;

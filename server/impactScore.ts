@@ -1,4 +1,4 @@
-import type { ProjectMetric } from "../shared/schema.ts";
+import type { ProjectMetric } from "../shared/schema";
 
 interface MetricScore {
   name: string;
