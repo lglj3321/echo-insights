@@ -959,9 +959,72 @@ export async function registerRoutes(app: Express): Promise<void> {
   // Survey Responses API
   app.post("/api/survey-responses", async (req, res) => {
     try {
-      const validation = insertSurveyResponseSchema.safeParse(req.body);
+      // Validate required fields first
+      if (!req.body.projectId) {
+        return res.status(400).json({ error: "projectId is required" });
+      }
+      if (!req.body.questionId) {
+        return res.status(400).json({ error: "questionId is required" });
+      }
+      if (!req.body.answer && req.body.answer !== "") {
+        return res.status(400).json({ error: "answer is required" });
+      }
+
+      // Verify question exists and belongs to project
+      const question = await storage.getSurveyQuestion(req.body.questionId);
+      if (!question) {
+        return res.status(404).json({ error: "Question not found" });
+      }
+      if (question.projectId !== req.body.projectId) {
+        return res.status(400).json({ error: "Question does not belong to this project" });
+      }
+
+      // For choice questions, verify answer matches one of the options
+      // Use case-insensitive and trimmed comparison for flexibility
+      if (question.options && question.options.length > 0) {
+        const submittedAnswer = String(req.body.answer || "").trim();
+        const normalizedOptions = question.options.map(opt => String(opt).trim().toLowerCase());
+        const normalizedAnswer = submittedAnswer.toLowerCase();
+        
+        const isValidOption = normalizedOptions.includes(normalizedAnswer) || 
+                              question.options.some(opt => String(opt).trim().toLowerCase() === normalizedAnswer);
+        
+        if (!isValidOption) {
+          console.error("Invalid option submitted:", {
+            submittedAnswer,
+            validOptions: question.options,
+            questionId: question.id,
+            questionText: question.questionText
+          });
+          return res.status(400).json({ 
+            error: `Invalid answer "${submittedAnswer}". Must be one of: ${question.options.join(", ")}`,
+            validOptions: question.options,
+            submittedAnswer: submittedAnswer
+          });
+        }
+        
+        // Normalize the answer to match the exact option text (preserve original case)
+        const exactMatch = question.options.find(opt => String(opt).trim().toLowerCase() === normalizedAnswer);
+        if (exactMatch) {
+          req.body.answer = exactMatch; // Use the exact option text from database
+        }
+      }
+
+      // Validate with schema
+      const validation = insertSurveyResponseSchema.safeParse({
+        projectId: req.body.projectId,
+        questionId: req.body.questionId,
+        answer: String(req.body.answer || ""),
+        numericValue: req.body.numericValue ? String(req.body.numericValue) : null,
+        metadata: req.body.metadata || null,
+      });
+      
       if (!validation.success) {
-        return res.status(400).json({ error: validation.error });
+        console.error("Validation error:", validation.error);
+        return res.status(400).json({ 
+          error: "Validation failed", 
+          details: validation.error.errors 
+        });
       }
       
       // Generate or use provided sessionId for grouping responses from same survey completion
@@ -983,7 +1046,9 @@ export async function registerRoutes(app: Express): Promise<void> {
       const response = await storage.createSurveyResponse(responseData);
       res.status(201).json(response);
     } catch (error) {
-      res.status(500).json({ error: "Failed to create survey response" });
+      console.error("Error creating survey response:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to create survey response";
+      res.status(500).json({ error: errorMessage });
     }
   });
 

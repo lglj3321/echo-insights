@@ -51,13 +51,35 @@ export default function Survey({ projectId: propProjectId }: SurveyProps) {
     mutationFn: async (data: { questionId: string; answer: number | string; numericValue?: number }) => {
       if (!projectId) throw new Error("Project ID is required");
       
-      const response = await apiRequest("POST", "/api/survey-responses", {
-        projectId,
-        questionId: data.questionId,
-        answer: String(data.answer),
-        numericValue: data.numericValue,
-        sessionId, // Include sessionId to group responses from same survey completion
+      // Get token from localStorage
+      const token = localStorage.getItem("token");
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      
+      const response = await fetch("/api/survey-responses", {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({
+          projectId,
+          questionId: data.questionId,
+          answer: String(data.answer || ""),
+          numericValue: data.numericValue !== undefined ? data.numericValue : null,
+          sessionId, // Include sessionId to group responses from same survey completion
+        }),
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Failed to submit response" }));
+        const error = new Error(errorData.error || "Failed to submit response");
+        (error as any).response = { data: errorData, status: response.status };
+        throw error;
+      }
+      
       return response.json();
     },
   });
@@ -126,11 +148,33 @@ export default function Survey({ projectId: propProjectId }: SurveyProps) {
         answer: answerText,
         numericValue,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to submit answer:", error);
+      
+      // Extract error message
+      let errorMessage = "Failed to save your answer. Please try again.";
+      if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
+      // Check for validation errors
+      if (error?.response?.data?.details) {
+        const details = error.response.data.details;
+        errorMessage = `Validation error: ${details.map((d: any) => d.message).join(", ")}`;
+      }
+      
+      // Check for invalid option error
+      if (error?.response?.data?.validOptions) {
+        errorMessage = `Invalid option selected. Please choose from: ${error.response.data.validOptions.join(", ")}`;
+      }
+      
       toast({
         title: "Submission Error",
-        description: "Failed to save your answer. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
       return; // Don't continue if submission fails
