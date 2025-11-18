@@ -1094,6 +1094,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         const questionOptions = question.options || [];
         
         // Build distribution including all options (even if not selected)
+        // For choice questions, always show all options
         const distribution = questionOptions.length > 0
           ? questionOptions.map(option => {
               const count = answerCounts[option] || 0;
@@ -1104,7 +1105,7 @@ export async function registerRoutes(app: Express): Promise<void> {
                   ? Math.round((count / questionResponses.length) * 100 * 10) / 10 
                   : 0,
               };
-            }).sort((a, b) => b.count - a.count) // Sort by count descending
+            }) // Don't sort - keep original order of options
           : Object.entries(answerCounts)
               .map(([answer, count]) => ({
                 answer,
@@ -1113,7 +1114,7 @@ export async function registerRoutes(app: Express): Promise<void> {
                   ? Math.round((count / questionResponses.length) * 100 * 10) / 10 
                   : 0,
               }))
-              .sort((a, b) => b.count - a.count); // Sort by count descending
+              .sort((a, b) => b.count - a.count); // Sort by count descending for non-choice questions
 
         const averageRating = numericResponses.length > 0
           ? calculateAverageScore(questionResponses)
@@ -1142,12 +1143,18 @@ export async function registerRoutes(app: Express): Promise<void> {
       // Determine status using consistent function
       const status = determineSurveyStatus(feedbackData.count, questions.length);
 
+      // Calculate total numeric responses for percentage calculations
+      const totalNumericResponses = responses.filter(r => r.numericValue !== null && r.numericValue !== undefined).length;
+      const totalSentimentResponses = responses.filter(r => r.numericValue !== null && r.numericValue !== undefined).length;
+
       res.json({
         id: projectId,
         title: `${project.title} Survey`,
         projectTitle: project.title,
         status,
-        totalResponses: feedbackData.count,
+        totalResponses: feedbackData.count, // Number of completed surveys
+        totalNumericResponses, // Total number of numeric responses (for NPS/Sentiment calculations)
+        totalSentimentResponses, // Total number of responses with sentiment
         targetResponses: questions.length * 50,
         createdAt: project.createdAt?.toISOString() || new Date().toISOString(),
         completedAt: status === "completed" ? new Date().toISOString() : undefined,
@@ -1189,20 +1196,49 @@ export async function registerRoutes(app: Express): Promise<void> {
       const responses = await storage.getSurveyResponses(projectId);
       const questions = await storage.getSurveyQuestions(projectId);
 
-      // Format responses with question text
+      // Format responses with question text and NPS classification
       const formattedResponses = responses.map(response => {
         const question = questions.find(q => q.id === response.questionId);
+        const numericValue = response.numericValue ? Number(response.numericValue) : undefined;
+        
+        // Calculate NPS category for this response
+        let npsCategory: "Promoter" | "Passive" | "Detractor" | undefined = undefined;
+        if (numericValue !== undefined) {
+          // Convert to 0-10 scale if needed
+          let npsScore: number;
+          if (numericValue >= 1 && numericValue <= 5) {
+            npsScore = (numericValue - 1) * 2 + 2; // Map: 5->10, 4->8, 3->6, 2->4, 1->2
+          } else {
+            npsScore = Math.max(0, Math.min(10, numericValue));
+          }
+          
+          if (npsScore >= 9) npsCategory = "Promoter";
+          else if (npsScore >= 7) npsCategory = "Passive";
+          else npsCategory = "Detractor";
+        }
+        
+        // Calculate sentiment
+        let sentiment: "positive" | "negative" | "neutral" | undefined = undefined;
+        if (numericValue !== undefined) {
+          const maxScore = Math.max(...responses.filter(r => r.numericValue).map(r => Number(r.numericValue)));
+          const isFivePointScale = maxScore <= 5;
+          
+          if (isFivePointScale) {
+            sentiment = numericValue >= 4 ? "positive" : numericValue <= 2 ? "negative" : "neutral";
+          } else {
+            sentiment = numericValue >= 8 ? "positive" : numericValue <= 4 ? "negative" : "neutral";
+          }
+        }
+        
         return {
           id: response.id,
           questionText: question?.questionText || "Unknown question",
+          questionType: question?.questionType,
           answer: response.answer,
-          rating: response.numericValue ? Number(response.numericValue) : undefined,
+          rating: numericValue,
+          npsCategory,
           timestamp: response.createdAt?.toISOString() || new Date().toISOString(),
-          sentiment: response.numericValue 
-            ? Number(response.numericValue) >= 4 ? "positive" 
-              : Number(response.numericValue) <= 2 ? "negative" 
-              : "neutral"
-            : undefined,
+          sentiment,
         };
       });
 

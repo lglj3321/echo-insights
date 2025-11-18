@@ -106,14 +106,24 @@ export default function Survey({ projectId: propProjectId }: SurveyProps) {
     }
 
     // Submit current answer
-    const numericValue = typeof answers[currentQ.id] === "number" 
-      ? answers[currentQ.id] as number 
+    // For choice questions, answer is the selected option string
+    // For rating/scale questions, answer is the numeric value as string, and we also set numericValue
+    const answerValue = answers[currentQ.id];
+    const numericValue = typeof answerValue === "number" 
+      ? answerValue 
       : undefined;
+    
+    // For choice questions, use the option text; for numeric questions, convert to string
+    const answerText = currentQ.type === "choice" 
+      ? String(answerValue) // Choice: use the option text directly
+      : typeof answerValue === "number" 
+        ? String(answerValue) // Rating/Scale: convert number to string
+        : String(answerValue || ""); // Fallback
 
     try {
       await submitResponseMutation.mutateAsync({
         questionId: currentQ.id,
-        answer: answers[currentQ.id] || "",
+        answer: answerText,
         numericValue,
       });
     } catch (error) {

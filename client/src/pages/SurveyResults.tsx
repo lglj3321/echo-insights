@@ -26,8 +26,10 @@ import { useAuth } from "@/hooks/useAuth";
 interface ResponseData {
   id: string;
   questionText: string;
+  questionType?: string;
   answer: string;
   rating?: number;
+  npsCategory?: "Promoter" | "Passive" | "Detractor";
   timestamp: string;
   sentiment?: "positive" | "negative" | "neutral";
 }
@@ -319,8 +321,8 @@ export default function SurveyResults() {
                 <div className="text-center p-4 rounded-lg border border-primary bg-primary/5">
                   <ThumbsUp className="h-6 w-6 mx-auto mb-2 text-primary" />
                   <p className="text-2xl font-bold font-mono text-primary">
-                    {survey.totalResponses > 0 
-                      ? Math.round((survey.npsBreakdown.promoters / survey.totalResponses) * 100) 
+                    {survey.totalNumericResponses > 0 
+                      ? Math.round((survey.npsBreakdown.promoters / survey.totalNumericResponses) * 100) 
                       : 0}%
                   </p>
                   <p className="text-sm text-muted-foreground">Promoters (9-10)</p>
@@ -331,8 +333,8 @@ export default function SurveyResults() {
                 <div className="text-center p-4 rounded-lg border bg-muted">
                   <Minus className="h-6 w-6 mx-auto mb-2 text-chart-2" />
                   <p className="text-2xl font-bold font-mono text-chart-2">
-                    {survey.totalResponses > 0 
-                      ? Math.round((survey.npsBreakdown.passives / survey.totalResponses) * 100) 
+                    {survey.totalNumericResponses > 0 
+                      ? Math.round((survey.npsBreakdown.passives / survey.totalNumericResponses) * 100) 
                       : 0}%
                   </p>
                   <p className="text-sm text-muted-foreground">Passives (7-8)</p>
@@ -343,8 +345,8 @@ export default function SurveyResults() {
                 <div className="text-center p-4 rounded-lg border border-destructive bg-destructive/5">
                   <ThumbsDown className="h-6 w-6 mx-auto mb-2 text-destructive" />
                   <p className="text-2xl font-bold font-mono text-destructive">
-                    {survey.totalResponses > 0 
-                      ? Math.round((survey.npsBreakdown.detractors / survey.totalResponses) * 100) 
+                    {survey.totalNumericResponses > 0 
+                      ? Math.round((survey.npsBreakdown.detractors / survey.totalNumericResponses) * 100) 
                       : 0}%
                   </p>
                   <p className="text-sm text-muted-foreground">Detractors (0-6)</p>
@@ -362,9 +364,9 @@ export default function SurveyResults() {
                   <span className="text-2xl font-bold font-mono text-chart-2">{survey.npsScore}</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {survey.totalResponses > 0 ? (
+                  {survey.totalNumericResponses > 0 ? (
                     <>
-                      Calculation: % Promoters ({Math.round((survey.npsBreakdown.promoters / survey.totalResponses) * 100)}%) - % Detractors ({Math.round((survey.npsBreakdown.detractors / survey.totalResponses) * 100)}%) = {survey.npsScore}
+                      Calculation: % Promoters ({Math.round((survey.npsBreakdown.promoters / survey.totalNumericResponses) * 100)}%) - % Detractors ({Math.round((survey.npsBreakdown.detractors / survey.totalNumericResponses) * 100)}%) = {survey.npsScore}
                     </>
                   ) : (
                     'No responses yet'
@@ -390,10 +392,17 @@ export default function SurveyResults() {
                       <span>Positive</span>
                     </div>
                     <span className="font-semibold">
-                      {Math.round((survey.sentimentBreakdown.positive / survey.totalResponses) * 100)}%
+                      {survey.totalSentimentResponses > 0
+                        ? Math.round((survey.sentimentBreakdown.positive / survey.totalSentimentResponses) * 100)
+                        : 0}%
                     </span>
                   </div>
-                  <Progress value={(survey.sentimentBreakdown.positive / survey.totalResponses) * 100} className="h-2" />
+                  <Progress 
+                    value={survey.totalSentimentResponses > 0 
+                      ? (survey.sentimentBreakdown.positive / survey.totalSentimentResponses) * 100 
+                      : 0} 
+                    className="h-2" 
+                  />
                 </div>
                 
                 <div className="space-y-2">
@@ -403,10 +412,17 @@ export default function SurveyResults() {
                       <span>Neutral</span>
                     </div>
                     <span className="font-semibold">
-                      {Math.round((survey.sentimentBreakdown.neutral / survey.totalResponses) * 100)}%
+                      {survey.totalSentimentResponses > 0
+                        ? Math.round((survey.sentimentBreakdown.neutral / survey.totalSentimentResponses) * 100)
+                        : 0}%
                     </span>
                   </div>
-                  <Progress value={(survey.sentimentBreakdown.neutral / survey.totalResponses) * 100} className="h-2" />
+                  <Progress 
+                    value={survey.totalSentimentResponses > 0 
+                      ? (survey.sentimentBreakdown.neutral / survey.totalSentimentResponses) * 100 
+                      : 0} 
+                    className="h-2" 
+                  />
                 </div>
                 
                 <div className="space-y-2">
@@ -416,10 +432,17 @@ export default function SurveyResults() {
                       <span>Negative</span>
                     </div>
                     <span className="font-semibold">
-                      {Math.round((survey.sentimentBreakdown.negative / survey.totalResponses) * 100)}%
+                      {survey.totalSentimentResponses > 0
+                        ? Math.round((survey.sentimentBreakdown.negative / survey.totalSentimentResponses) * 100)
+                        : 0}%
                     </span>
                   </div>
-                  <Progress value={(survey.sentimentBreakdown.negative / survey.totalResponses) * 100} className="h-2" />
+                  <Progress 
+                    value={survey.totalSentimentResponses > 0 
+                      ? (survey.sentimentBreakdown.negative / survey.totalSentimentResponses) * 100 
+                      : 0} 
+                    className="h-2" 
+                  />
                 </div>
               </div>
             </CardContent>
@@ -467,7 +490,37 @@ export default function SurveyResults() {
                 )}
                 
                 <div className="space-y-3">
-                  {qa.distribution.length > 0 ? (
+                  {qa.options && qa.options.length > 0 ? (
+                    // For choice questions, show all options in order
+                    qa.options.map((option, optIdx) => {
+                      const dist = qa.distribution.find(d => d.answer === option) || {
+                        answer: option,
+                        count: 0,
+                        percentage: 0,
+                      };
+                      return (
+                        <div key={optIdx} className="space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className={`font-medium ${dist.count === 0 ? "text-muted-foreground opacity-60" : ""}`}>
+                              {dist.answer}
+                              {dist.count === 0 && " (No responses)"}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold">{dist.count}</span>
+                              <span className="text-muted-foreground">
+                                ({dist.percentage}%)
+                              </span>
+                            </div>
+                          </div>
+                          <Progress 
+                            value={dist.percentage} 
+                            className={`h-2 ${dist.count === 0 ? "opacity-30" : ""}`} 
+                          />
+                        </div>
+                      );
+                    })
+                  ) : qa.distribution.length > 0 ? (
+                    // For non-choice questions, show distribution
                     qa.distribution.map((dist, distIdx) => (
                       <div key={distIdx} className="space-y-2">
                         <div className="flex items-center justify-between text-sm">
@@ -530,41 +583,68 @@ export default function SurveyResults() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {individualResponses.map((response, idx) => (
-                  <div
-                    key={response.id}
-                    className="p-4 rounded-lg border hover-elevate"
-                    data-testid={`response-${idx}`}
-                  >
-                    <div className="flex items-start justify-between gap-4 mb-2">
-                      <p className="text-sm font-medium flex-1">{response.questionText}</p>
-                      <div className="flex items-center gap-2">
-                        {response.rating && (
-                          <Badge variant="outline" className={getNPSColor(response.rating)}>
-                            {response.rating}/10 • {getNPSCategory(response.rating)}
-                          </Badge>
-                        )}
+                  {individualResponses.map((response, idx) => {
+                    // Get NPS category (use provided or calculate)
+                    const npsCategory = response.npsCategory || (response.rating ? getNPSCategory(response.rating) : undefined);
+                    const npsColor = response.rating ? getNPSColor(response.rating) : undefined;
+                    
+                    return (
+                      <div
+                        key={response.id}
+                        className="p-4 rounded-lg border hover-elevate"
+                        data-testid={`response-${idx}`}
+                      >
+                        <div className="flex items-start justify-between gap-4 mb-2">
+                          <p className="text-sm font-medium flex-1">{response.questionText}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {response.rating !== undefined && (
+                              <Badge variant="outline" className={npsColor}>
+                                {response.rating}/10
+                              </Badge>
+                            )}
+                            {npsCategory && (
+                              <Badge 
+                                variant={npsCategory === "Promoter" ? "default" : npsCategory === "Passive" ? "secondary" : "destructive"}
+                                className="text-xs"
+                              >
+                                {npsCategory === "Promoter" && <ThumbsUp className="h-3 w-3 mr-1" />}
+                                {npsCategory === "Detractor" && <ThumbsDown className="h-3 w-3 mr-1" />}
+                                {npsCategory === "Passive" && <Minus className="h-3 w-3 mr-1" />}
+                                {npsCategory}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-sm">
+                            <span className="font-semibold">Answer:</span>{" "}
+                            <span className={response.answer ? "" : "text-muted-foreground italic"}>
+                              {response.answer || "No answer provided"}
+                            </span>
+                          </p>
+                          {response.questionType && (
+                            <p className="text-xs text-muted-foreground">
+                              Question Type: {response.questionType}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-3">
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {new Date(response.timestamp).toLocaleString()}
+                          </div>
+                          {response.sentiment && (
+                            <Badge variant="secondary" className="text-xs">
+                              {response.sentiment === "positive" && <ThumbsUp className="h-3 w-3 mr-1" />}
+                              {response.sentiment === "negative" && <ThumbsDown className="h-3 w-3 mr-1" />}
+                              {response.sentiment === "neutral" && <Minus className="h-3 w-3 mr-1" />}
+                              {response.sentiment}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <p className="text-sm mb-2">
-                      <span className="font-semibold">Answer:</span> {response.answer}
-                    </p>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {response.timestamp}
-                      </div>
-                      {response.sentiment && (
-                        <Badge variant="secondary" className="text-xs">
-                          {response.sentiment === "positive" && <ThumbsUp className="h-3 w-3 mr-1" />}
-                          {response.sentiment === "negative" && <ThumbsDown className="h-3 w-3 mr-1" />}
-                          {response.sentiment === "neutral" && <Minus className="h-3 w-3 mr-1" />}
-                          {response.sentiment}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
