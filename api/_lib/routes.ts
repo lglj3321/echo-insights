@@ -963,7 +963,24 @@ export async function registerRoutes(app: Express): Promise<void> {
       if (!validation.success) {
         return res.status(400).json({ error: validation.error });
       }
-      const response = await storage.createSurveyResponse(validation.data);
+      
+      // Generate or use provided sessionId for grouping responses from same survey completion
+      const sessionId = req.body.sessionId || `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      
+      // Add sessionId to metadata
+      const existingMetadata = validation.data.metadata && typeof validation.data.metadata === 'object'
+        ? validation.data.metadata as Record<string, any>
+        : {};
+      
+      const responseData = {
+        ...validation.data,
+        metadata: {
+          ...existingMetadata,
+          sessionId,
+        },
+      };
+      
+      const response = await storage.createSurveyResponse(responseData);
       res.status(201).json(response);
     } catch (error) {
       res.status(500).json({ error: "Failed to create survey response" });
@@ -1073,15 +1090,30 @@ export async function registerRoutes(app: Express): Promise<void> {
           answerCounts[answer] = (answerCounts[answer] || 0) + 1;
         });
 
-        const distribution = Object.entries(answerCounts)
-          .map(([answer, count]) => ({
-            answer,
-            count,
-            percentage: questionResponses.length > 0 
-              ? Math.round((count / questionResponses.length) * 100 * 10) / 10 
-              : 0,
-          }))
-          .sort((a, b) => b.count - a.count); // Sort by count descending
+        // Get all options from question (if it's a choice question)
+        const questionOptions = question.options || [];
+        
+        // Build distribution including all options (even if not selected)
+        const distribution = questionOptions.length > 0
+          ? questionOptions.map(option => {
+              const count = answerCounts[option] || 0;
+              return {
+                answer: option,
+                count,
+                percentage: questionResponses.length > 0 
+                  ? Math.round((count / questionResponses.length) * 100 * 10) / 10 
+                  : 0,
+              };
+            }).sort((a, b) => b.count - a.count) // Sort by count descending
+          : Object.entries(answerCounts)
+              .map(([answer, count]) => ({
+                answer,
+                count,
+                percentage: questionResponses.length > 0 
+                  ? Math.round((count / questionResponses.length) * 100 * 10) / 10 
+                  : 0,
+              }))
+              .sort((a, b) => b.count - a.count); // Sort by count descending
 
         const averageRating = numericResponses.length > 0
           ? calculateAverageScore(questionResponses)
@@ -1092,6 +1124,8 @@ export async function registerRoutes(app: Express): Promise<void> {
 
         return {
           question: question.questionText,
+          questionType: question.questionType,
+          options: questionOptions,
           responses: questionResponses.length,
           distribution,
           averageRating,

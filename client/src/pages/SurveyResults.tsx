@@ -34,6 +34,8 @@ interface ResponseData {
 
 interface QuestionAnalysis {
   question: string;
+  questionType?: string;
+  options?: string[];
   responses: number;
   distribution: {
     answer: string;
@@ -53,8 +55,8 @@ export default function SurveyResults() {
   const [, params] = useRoute("/feedback/:id");
   const surveyId = params?.id;
 
-  // Fetch survey results from API
-  const { data: survey, isLoading: isLoadingSurvey, error: surveyError } = useQuery({
+  // Fetch survey results from API with auto-refresh
+  const { data: survey, isLoading: isLoadingSurvey, error: surveyError, refetch } = useQuery({
     queryKey: ['/api/surveys', surveyId, 'results'],
     queryFn: async () => {
       if (!surveyId) throw new Error("Survey ID is required");
@@ -83,9 +85,10 @@ export default function SurveyResults() {
     },
     enabled: !!user && !!surveyId,
     retry: false,
+    refetchInterval: 3000, // Auto-refresh every 3 seconds to show new responses
   });
 
-  // Fetch individual responses
+  // Fetch individual responses with auto-refresh
   const { data: individualResponses = [], isLoading: isLoadingResponses } = useQuery<ResponseData[]>({
     queryKey: ['/api/surveys', surveyId, 'responses'],
     queryFn: async () => {
@@ -107,6 +110,7 @@ export default function SurveyResults() {
     },
     enabled: !!user && !!surveyId && !!survey,
     retry: false,
+    refetchInterval: 3000, // Auto-refresh every 3 seconds
   });
 
   const isLoading = isLoadingSurvey || isLoadingResponses;
@@ -215,19 +219,30 @@ export default function SurveyResults() {
             <Badge variant={survey.status === "completed" ? "secondary" : "outline"}>
               {survey.status === "completed" ? "Completed" : "Gathering"}
             </Badge>
+            {refetch && (
+              <Badge variant="outline" className="text-xs">
+                Auto-refreshing...
+              </Badge>
+            )}
           </div>
           <p className="text-muted-foreground mt-1">
             Project: {survey.projectTitle}
           </p>
           <p className="text-sm text-muted-foreground">
-            {new Date(survey.createdAt).toLocaleDateString()}
-            {survey.completedAt && ` - ${new Date(survey.completedAt).toLocaleDateString()}`}
+            Created: {new Date(survey.createdAt).toLocaleDateString()}
+            {survey.completedAt && ` • Completed: ${new Date(survey.completedAt).toLocaleDateString()}`}
           </p>
         </div>
-        <Button variant="outline" onClick={downloadCSV} data-testid="button-export-csv">
-          <Download className="h-4 w-4 mr-2" />
-          Export CSV
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => refetch?.()} data-testid="button-refresh">
+            <Loader2 className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+          <Button variant="outline" onClick={downloadCSV} data-testid="button-export-csv">
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -237,6 +252,7 @@ export default function SurveyResults() {
               <div>
                 <p className="text-sm text-muted-foreground">Total Responses</p>
                 <p className="text-3xl font-bold font-mono">{survey.totalResponses}</p>
+                <p className="text-xs text-muted-foreground mt-1">Completed surveys</p>
               </div>
               <Users className="h-8 w-8 text-muted-foreground opacity-50" />
             </div>
@@ -418,28 +434,57 @@ export default function SurveyResults() {
               </CardContent>
             </Card>
           ) : (
-            questionAnalysis.map((qa: any, idx: number) => (
+            questionAnalysis.map((qa: QuestionAnalysis, idx: number) => (
             <Card key={idx} data-testid={`question-analysis-${idx}`}>
               <CardHeader>
                 <CardTitle className="text-lg">{qa.question}</CardTitle>
                 <CardDescription>
-                  {qa.responses} responses • Average rating: {qa.averageRating?.toFixed(1) || "N/A"}
+                  {qa.responses} responses {qa.averageRating !== undefined && `• Average rating: ${qa.averageRating.toFixed(1)}`}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  {qa.distribution.map((dist: any, distIdx: number) => (
-                    <div key={distIdx} className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">{dist.answer}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold">{dist.count}</span>
-                          <span className="text-muted-foreground">({dist.percentage}%)</span>
-                        </div>
-                      </div>
-                      <Progress value={dist.percentage} className="h-2" />
+                {/* Show all options for choice questions */}
+                {qa.options && qa.options.length > 0 && (
+                  <div className="mb-4 p-3 bg-muted rounded-lg">
+                    <p className="text-sm font-medium mb-2">Available Options:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {qa.options.map((option, optIdx) => {
+                        const dist = qa.distribution.find(d => d.answer === option);
+                        const hasResponse = dist && dist.count > 0;
+                        return (
+                          <Badge 
+                            key={optIdx} 
+                            variant={hasResponse ? "default" : "outline"}
+                            className={hasResponse ? "" : "opacity-50"}
+                          >
+                            {option}
+                            {hasResponse && ` (${dist.count})`}
+                          </Badge>
+                        );
+                      })}
                     </div>
-                  ))}
+                  </div>
+                )}
+                
+                <div className="space-y-3">
+                  {qa.distribution.length > 0 ? (
+                    qa.distribution.map((dist, distIdx) => (
+                      <div key={distIdx} className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium">{dist.answer}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold">{dist.count}</span>
+                            <span className="text-muted-foreground">({dist.percentage}%)</span>
+                          </div>
+                        </div>
+                        <Progress value={dist.percentage} className="h-2" />
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No responses yet for this question
+                    </p>
+                  )}
                 </div>
 
                 {qa.sentimentBreakdown && (

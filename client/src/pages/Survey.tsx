@@ -19,6 +19,9 @@ export default function Survey({ projectId: propProjectId }: SurveyProps) {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number | string>>({});
   const [isComplete, setIsComplete] = useState(false);
+  
+  // Generate a unique sessionId for this survey completion
+  const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substring(7)}`);
 
   // Get projectId from URL params or props
   const projectId = propProjectId || (params as any)?.projectId;
@@ -53,6 +56,7 @@ export default function Survey({ projectId: propProjectId }: SurveyProps) {
         questionId: data.questionId,
         answer: String(data.answer),
         numericValue: data.numericValue,
+        sessionId, // Include sessionId to group responses from same survey completion
       });
       return response.json();
     },
@@ -91,6 +95,16 @@ export default function Survey({ projectId: propProjectId }: SurveyProps) {
     const currentQ = formattedQuestions[currentQuestion];
     if (!currentQ) return;
 
+    // Check if answer is provided
+    if (answers[currentQ.id] === undefined || answers[currentQ.id] === "") {
+      toast({
+        title: "Answer Required",
+        description: "Please provide an answer before continuing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Submit current answer
     const numericValue = typeof answers[currentQ.id] === "number" 
       ? answers[currentQ.id] as number 
@@ -104,16 +118,22 @@ export default function Survey({ projectId: propProjectId }: SurveyProps) {
       });
     } catch (error) {
       console.error("Failed to submit answer:", error);
-      // Continue even if submission fails
+      toast({
+        title: "Submission Error",
+        description: "Failed to save your answer. Please try again.",
+        variant: "destructive",
+      });
+      return; // Don't continue if submission fails
     }
 
+    // Move to next question or complete
     if (currentQuestion < formattedQuestions.length - 1) {
       setCurrentQuestion(prev => prev + 1);
     } else {
       setIsComplete(true);
       toast({
         title: "Survey Completed",
-        description: "Thank you for your feedback!",
+        description: "Thank you for your feedback! Your responses have been saved.",
       });
     }
   };
@@ -168,28 +188,38 @@ export default function Survey({ projectId: propProjectId }: SurveyProps) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
-          <CardContent className="pt-6 text-center space-y-4">
+          <CardContent className="pt-6 text-center space-y-6">
             <div className="flex justify-center">
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                <CheckCircle2 className="w-8 h-8 text-primary" />
+              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
+                <CheckCircle2 className="w-10 h-10 text-primary" />
               </div>
             </div>
-            <h2 className="text-2xl font-bold">Thank You!</h2>
-            <p className="text-muted-foreground">
-              Your feedback has been submitted successfully. We appreciate your time in helping us
-              make more sustainable choices.
-            </p>
-            <Button
-              onClick={() => {
-                setCurrentQuestion(0);
-                setAnswers({});
-                setIsComplete(false);
-              }}
-              variant="outline"
-              data-testid="button-restart"
-            >
-              Take Another Survey
-            </Button>
+            <div className="space-y-2">
+              <h2 className="text-3xl font-bold">Thank You!</h2>
+              <p className="text-muted-foreground text-lg">
+                Your feedback has been submitted successfully.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                We appreciate your time in helping us make more sustainable choices.
+              </p>
+            </div>
+            <div className="pt-4 space-y-2">
+              <p className="text-xs text-muted-foreground">
+                You've completed {formattedQuestions.length} question{formattedQuestions.length !== 1 ? 's' : ''}
+              </p>
+              <Button
+                onClick={() => {
+                  setCurrentQuestion(0);
+                  setAnswers({});
+                  setIsComplete(false);
+                }}
+                variant="outline"
+                data-testid="button-restart"
+                className="w-full"
+              >
+                Take Another Survey
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -207,3 +237,4 @@ export default function Survey({ projectId: propProjectId }: SurveyProps) {
     />
   );
 }
+

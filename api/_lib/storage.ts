@@ -373,16 +373,47 @@ export class MemStorage implements IStorage {
     const responses = this.surveyResponses.get(projectId) || [];
     if (responses.length === 0) return { score: 0, count: 0 };
     
+    // Count unique surveys (group by sessionId in metadata)
+    const sessionIds = new Set<string>();
+    responses.forEach(r => {
+      if (r.metadata && typeof r.metadata === 'object' && 'sessionId' in r.metadata) {
+        const sessionId = (r.metadata as any).sessionId;
+        if (typeof sessionId === 'string') {
+          sessionIds.add(sessionId);
+        }
+      }
+    });
+    
+    // If no sessionIds found, group by time windows (5 minutes)
+    let uniqueSurveyCount = sessionIds.size;
+    if (uniqueSurveyCount === 0) {
+      const timeGroups = new Map<number, Set<string>>();
+      responses.forEach(r => {
+        if (r.createdAt) {
+          const time = r.createdAt instanceof Date ? r.createdAt.getTime() : new Date(r.createdAt).getTime();
+          const window = Math.floor(time / (5 * 60 * 1000)); // 5-minute windows
+          if (!timeGroups.has(window)) {
+            timeGroups.set(window, new Set());
+          }
+          timeGroups.get(window)!.add(r.questionId);
+        }
+      });
+      uniqueSurveyCount = timeGroups.size;
+    }
+    
+    // Calculate average score from numeric responses
     const numericResponses = responses.filter(r => r.numericValue !== null && r.numericValue !== undefined);
-    if (numericResponses.length === 0) return { score: 0, count: 0 };
+    const avg = numericResponses.length > 0
+      ? numericResponses.reduce((acc, r) => {
+          const value = typeof r.numericValue === 'string' ? parseFloat(r.numericValue) : Number(r.numericValue);
+          return acc + (isNaN(value) ? 0 : value);
+        }, 0) / numericResponses.length
+      : 0;
     
-    const sum = numericResponses.reduce((acc, r) => {
-      const value = typeof r.numericValue === 'string' ? parseFloat(r.numericValue) : Number(r.numericValue);
-      return acc + (isNaN(value) ? 0 : value);
-    }, 0);
-    const avg = sum / numericResponses.length;
-    
-    return { score: avg, count: numericResponses.length };
+    return { 
+      score: Math.round(avg * 10) / 10, 
+      count: uniqueSurveyCount // Return count of unique surveys, not individual responses
+    };
   }
 
   // Category methods
@@ -701,16 +732,58 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getProjectFeedbackScore(projectId: string): Promise<{ score: number; count: number }> {
-    const result = await this.dbInstance.select({
-      avg: drizzleSql<number>`COALESCE(AVG(numeric_value::numeric), 0)`,
-      count: drizzleSql<number>`count(*)::int`
-    })
+    // Get all responses for this project
+    const allResponses = await this.dbInstance.select()
       .from(schema.surveyResponses)
       .where(eq(schema.surveyResponses.projectId, projectId));
     
+    if (allResponses.length === 0) {
+      return { score: 0, count: 0 };
+    }
+    
+    // Count unique surveys (group by sessionId in metadata)
+    const sessionIds = new Set<string>();
+    allResponses.forEach(r => {
+      if (r.metadata && typeof r.metadata === 'object' && 'sessionId' in r.metadata) {
+        const sessionId = (r.metadata as any).sessionId;
+        if (typeof sessionId === 'string') {
+          sessionIds.add(sessionId);
+        }
+      }
+    });
+    
+    // If no sessionIds found, fall back to counting by unique questionId groups
+    // (assume responses within 5 minutes of each other are from same survey)
+    let uniqueSurveyCount = sessionIds.size;
+    
+    if (uniqueSurveyCount === 0) {
+      // Group responses by time windows (5 minutes)
+      const timeGroups = new Map<number, Set<string>>();
+      allResponses.forEach(r => {
+        if (r.createdAt) {
+          const time = new Date(r.createdAt).getTime();
+          const window = Math.floor(time / (5 * 60 * 1000)); // 5-minute windows
+          if (!timeGroups.has(window)) {
+            timeGroups.set(window, new Set());
+          }
+          timeGroups.get(window)!.add(r.questionId);
+        }
+      });
+      uniqueSurveyCount = timeGroups.size;
+    }
+    
+    // Calculate average score from numeric responses
+    const numericResponses = allResponses.filter(r => r.numericValue !== null && r.numericValue !== undefined);
+    const avg = numericResponses.length > 0
+      ? numericResponses.reduce((sum, r) => {
+          const value = typeof r.numericValue === 'string' ? parseFloat(r.numericValue) : Number(r.numericValue);
+          return sum + (isNaN(value) ? 0 : value);
+        }, 0) / numericResponses.length
+      : 0;
+    
     return {
-      score: Number(result[0]?.avg || 0),
-      count: result[0]?.count || 0
+      score: Math.round(avg * 10) / 10,
+      count: uniqueSurveyCount, // Return count of unique surveys, not individual responses
     };
   }
 
