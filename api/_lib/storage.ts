@@ -187,6 +187,34 @@ export class MemStorage implements IStorage {
   }
 
   async deleteProject(id: string): Promise<boolean> {
+    // Delete all related data first
+    // 1. Delete survey responses (stored as Map<projectId, Array>)
+    const responses = this.surveyResponses.get(id) || [];
+    responses.forEach(r => {
+      // Find and remove from all project response arrays
+      for (const [projectId, responseArray] of this.surveyResponses.entries()) {
+        const index = responseArray.findIndex(resp => resp.id === r.id);
+        if (index !== -1) {
+          responseArray.splice(index, 1);
+        }
+      }
+    });
+    this.surveyResponses.delete(id);
+    
+    // 2. Delete survey questions
+    const questionsToDelete = Array.from(this.surveyQuestions.values())
+      .filter(q => q.projectId === id);
+    questionsToDelete.forEach(q => this.surveyQuestions.delete(q.id));
+    
+    // 3. Delete QR code scans (stored as Map<projectId, Array>)
+    this.qrScans.delete(id);
+    
+    // 4. Delete project metrics
+    const metricsToDelete = Array.from(this.projectMetrics.values())
+      .filter(m => m.projectId === id);
+    metricsToDelete.forEach(m => this.projectMetrics.delete(m.id));
+    
+    // Finally, delete the project itself
     return this.projects.delete(id);
   }
 
@@ -519,8 +547,45 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteProject(id: string): Promise<boolean> {
-    const result = await this.dbInstance.delete(schema.projects).where(eq(schema.projects.id, id)).returning();
-    return result.length > 0;
+    try {
+      // Delete all related data first (in order of foreign key dependencies)
+      // 1. Delete survey responses (references survey_questions and projects)
+      await this.dbInstance.delete(schema.surveyResponses)
+        .where(eq(schema.surveyResponses.projectId, id));
+      
+      // 2. Delete survey questions (references projects)
+      await this.dbInstance.delete(schema.surveyQuestions)
+        .where(eq(schema.surveyQuestions.projectId, id));
+      
+      // 3. Delete QR code scans (references projects)
+      await this.dbInstance.delete(schema.qrCodeScans)
+        .where(eq(schema.qrCodeScans.projectId, id));
+      
+      // 4. Delete project metrics (references projects)
+      await this.dbInstance.delete(schema.projectMetrics)
+        .where(eq(schema.projectMetrics.projectId, id));
+      
+      // 5. Delete goals (references projects via userId, but we'll delete by projectId if there's a direct reference)
+      // Note: Goals are linked to userId, not projectId, so we don't delete them here
+      
+      // 6. Delete team members (references userId, not projectId, so we don't delete them here)
+      
+      // 7. Delete comments (if exists - check schema)
+      // Note: Comments table might not exist, so we'll skip if it doesn't
+      
+      // 8. Delete budget allocations (if exists - check schema)
+      // Note: Budget allocations table might not exist, so we'll skip if it doesn't
+      
+      // Finally, delete the project itself
+      const result = await this.dbInstance.delete(schema.projects)
+        .where(eq(schema.projects.id, id))
+        .returning();
+      
+      return result.length > 0;
+    } catch (error) {
+      console.error("Error deleting project and related data:", error);
+      throw error;
+    }
   }
 
   // Goals

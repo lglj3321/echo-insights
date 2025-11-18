@@ -897,9 +897,18 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   // Survey Questions API
-  app.get("/api/projects/:projectId/survey-questions", requireAuth, async (req, res) => {
+  // Public endpoint for survey pages (no authentication required)
+  app.get("/api/projects/:projectId/survey-questions", optionalAuth, async (req, res) => {
     try {
-      const questions = await storage.getSurveyQuestions(req.params.projectId);
+      const projectId = req.params.projectId;
+      
+      // Verify project exists
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      
+      const questions = await storage.getSurveyQuestions(projectId);
       res.json(questions);
     } catch (error) {
       console.error("Error fetching survey questions:", error);
