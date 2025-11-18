@@ -223,7 +223,7 @@ export default function Feedback() {
                     </Card>
                   )}
                   <div className="flex flex-col gap-2">
-                    <Link href={`/feedback/${survey.id}`}>
+                    <Link href={`/feedback/${survey.projectId}`}>
                       <Button variant="outline" size="sm" data-testid={`button-view-${survey.id}`}>
                         <BarChart3 className="h-4 w-4 mr-2" />
                         View Results

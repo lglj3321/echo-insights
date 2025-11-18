@@ -1034,8 +1034,12 @@ export async function registerRoutes(app: Express): Promise<void> {
   // Survey Results API - Get detailed survey results
   app.get("/api/surveys/:projectId/results", requireAuth, async (req, res) => {
     try {
+      const userId = req.user!.id;
       const projectId = req.params.projectId;
-      const project = await storage.getProject(projectId);
+      
+      // Verify project belongs to user
+      const userProjects = await storage.getProjects(userId);
+      const project = userProjects.find(p => p.id === projectId);
       
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
@@ -1128,7 +1132,17 @@ export async function registerRoutes(app: Express): Promise<void> {
   // Survey Individual Responses API
   app.get("/api/surveys/:projectId/responses", requireAuth, async (req, res) => {
     try {
+      const userId = req.user!.id;
       const projectId = req.params.projectId;
+      
+      // Verify project belongs to user
+      const userProjects = await storage.getProjects(userId);
+      const project = userProjects.find(p => p.id === projectId);
+      
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      
       const responses = await storage.getSurveyResponses(projectId);
       const questions = await storage.getSurveyQuestions(projectId);
 

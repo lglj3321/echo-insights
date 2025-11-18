@@ -58,16 +58,31 @@ export default function SurveyResults() {
     queryKey: ['/api/surveys', surveyId, 'results'],
     queryFn: async () => {
       if (!surveyId) throw new Error("Survey ID is required");
+      
+      // Get token from localStorage
+      const token = localStorage.getItem("token");
+      const headers: HeadersInit = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      
       const response = await fetch(`/api/surveys/${surveyId}/results`, {
         credentials: "include",
+        headers,
       });
+      
       if (!response.ok) {
-        if (response.status === 404) return null;
-        throw new Error("Failed to load survey results");
+        if (response.status === 404) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || "Survey not found");
+        }
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to load survey results");
       }
       return response.json();
     },
     enabled: !!user && !!surveyId,
+    retry: false,
   });
 
   // Fetch individual responses
@@ -75,13 +90,23 @@ export default function SurveyResults() {
     queryKey: ['/api/surveys', surveyId, 'responses'],
     queryFn: async () => {
       if (!surveyId) return [];
+      
+      // Get token from localStorage
+      const token = localStorage.getItem("token");
+      const headers: HeadersInit = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      
       const response = await fetch(`/api/surveys/${surveyId}/responses`, {
         credentials: "include",
+        headers,
       });
       if (!response.ok) return [];
       return response.json();
     },
-    enabled: !!user && !!surveyId,
+    enabled: !!user && !!surveyId && !!survey,
+    retry: false,
   });
 
   const isLoading = isLoadingSurvey || isLoadingResponses;
@@ -98,15 +123,25 @@ export default function SurveyResults() {
   }
 
   if (surveyError || !surveyId || !survey) {
+    const errorMessage = surveyError instanceof Error 
+      ? surveyError.message 
+      : surveyError 
+        ? "Failed to load survey results" 
+        : "The requested survey could not be found.";
+    
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center space-y-2">
+      <div className="flex items-center justify-center h-full min-h-[60vh]">
+        <div className="text-center space-y-4 max-w-md">
           <p className="text-2xl font-bold">Survey not found</p>
           <p className="text-muted-foreground">
-            {surveyError ? "Failed to load survey results" : "The requested survey could not be found."}
+            {errorMessage}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Make sure the survey exists and you have permission to view it.
           </p>
           <Link href="/feedback">
             <Button variant="outline" className="mt-4">
+              <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Feedback
             </Button>
           </Link>

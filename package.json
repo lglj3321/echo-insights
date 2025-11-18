@@ -9,6 +9,7 @@
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
     "db:push": "drizzle-kit push",
+    "db:clear": "tsx scripts/clear-database.ts",
     "test": "tsx scripts/test-all.ts",
     "test:workflow": "tsx scripts/test-workflow.ts",
     "test:seed": "tsx scripts/seed-test-data.ts",
@@ -19,7 +20,8 @@
     "seed:forecast": "tsx scripts/seed-forecast-data.ts",
     "seed:trend": "tsx scripts/seed-feedback-trend-data.ts",
     "seed:workflow": "tsx scripts/seed-complete-workflow.ts",
-    "seed:workflow:memory": "tsx scripts/seed-complete-workflow-memory.ts"
+    "seed:workflow:memory": "tsx scripts/seed-complete-workflow-memory.ts",
+    "seed:demo": "tsx scripts/seed-demo-data.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
