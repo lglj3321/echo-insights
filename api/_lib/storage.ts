@@ -210,9 +210,20 @@ export class MemStorage implements IStorage {
     this.qrScans.delete(id);
     
     // 4. Delete project metrics
-    const metricsToDelete = Array.from(this.projectMetrics.values())
-      .filter(m => m.projectId === id);
-    metricsToDelete.forEach(m => this.projectMetrics.delete(m.id));
+    // projectMetrics is Map<projectId, ProjectMetric[]>, so we need to flatten the arrays
+    const allMetrics = Array.from(this.projectMetrics.values()).flat();
+    const metricsToDelete = allMetrics.filter(m => m.projectId === id);
+    metricsToDelete.forEach(m => {
+      // Find and remove from the correct project's metrics array
+      const projectMetrics = this.projectMetrics.get(m.projectId);
+      if (projectMetrics) {
+        const index = projectMetrics.findIndex(metric => metric.id === m.id);
+        if (index !== -1) {
+          projectMetrics.splice(index, 1);
+          this.projectMetrics.set(m.projectId, projectMetrics);
+        }
+      }
+    });
     
     // Finally, delete the project itself
     return this.projects.delete(id);
