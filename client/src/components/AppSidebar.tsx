@@ -68,9 +68,7 @@ export function AppSidebar() {
   const displayEmail = (user as any)?.email || "";
 
   const handleSignOut = () => {
-    // 直接登出，不需要确认（符合现代UX实践）
-    // 如果将来需要确认，可以添加确认对话框
-    logout();
+            logout();
   };
 
   return (
@@ -124,8 +122,8 @@ export function AppSidebar() {
                   <ChevronUp className="ml-auto h-4 w-4" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent 
-                side="top" 
+              <DropdownMenuContent
+                side="top"
                 align="end"
                 sideOffset={8}
                 className="w-56 z-[100]"
@@ -146,9 +144,9 @@ export function AppSidebar() {
                   </a>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  onClick={handleSignOut} 
-                  disabled={isLoggingOut} 
+                <DropdownMenuItem
+                  onClick={handleSignOut}
+                  disabled={isLoggingOut}
                   data-testid="button-sign-out"
                   className={isLoggingOut ? "opacity-50 cursor-not-allowed" : ""}
                 >

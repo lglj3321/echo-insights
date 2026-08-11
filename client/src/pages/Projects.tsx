@@ -69,7 +69,7 @@ export default function Projects() {
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-  // Fetch projects from API (不需要userId参数，后端从session获取)
+  // The server scopes projects to the caller's token; no userId parameter.
   const { data: projects = [], isLoading: isLoadingProjects, error: projectsError } = useQuery<Project[]>({
     queryKey: ['/api/projects'],
     queryFn: getQueryFn({ on401: "throw" }),
@@ -115,12 +115,12 @@ export default function Projects() {
           complete: (results) => {
             if (results.data && results.data.length > 1) {
               const rows = results.data as any[][];
-              
+
               // First row = headers to find value/unit columns
               const headerRow = rows[0];
               let valueColIndex = -1;
               let unitColIndex = -1;
-              
+
               // Detect columns by keywords (case-insensitive)
               headerRow.forEach((header: any, index: number) => {
                 const headerStr = String(header || "").toLowerCase();
@@ -131,26 +131,26 @@ export default function Projects() {
                   unitColIndex = index;
                 }
               });
-              
+
               // Extract metrics from remaining rows (first column = metric name)
               for (let i = 1; i < rows.length; i++) {
                 const row = rows[i];
                 if (!Array.isArray(row) || row.length === 0) continue;
-                
+
                 const metricName = row[0];
                 if (!metricName || String(metricName).trim() === "") continue;
-                
+
                 // Build value string
                 let valueStr = "";
                 if (valueColIndex >= 0 && row[valueColIndex]) {
                   valueStr = String(row[valueColIndex]);
                 }
-                
+
                 if (unitColIndex >= 0 && row[unitColIndex]) {
                   const unit = String(row[unitColIndex]);
                   valueStr = valueStr ? `${valueStr} ${unit}` : unit;
                 }
-                
+
                 if (valueStr.trim()) {
                   extractedMetrics.push({
                     metricName: String(metricName),
@@ -167,7 +167,7 @@ export default function Projects() {
             resolve([]); // Return empty array on error instead of rejecting
           }
         });
-      } 
+      }
       // For Excel files - Read vertically (first column = metric names)
       else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
         const reader = new FileReader();
@@ -175,17 +175,17 @@ export default function Projects() {
           try {
             const base64 = e.target?.result as string;
             const base64Data = base64.split(",")[1];
-            
+
             const response = await fetch("/api/parse-excel", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ fileData: base64Data }),
             });
-            
+
             if (response.ok) {
               const { metrics } = await response.json();
               const extractedMetrics: any[] = [];
-              
+
               if (Array.isArray(metrics)) {
                 metrics.forEach((metric: { name: string; value: string }) => {
                   extractedMetrics.push({
@@ -237,20 +237,20 @@ export default function Projects() {
       let allCustomMetrics = [...userMetrics];
       let fileMetrics: any[] = [];
       let fileText: string | undefined;
-      
+
       if (data.uploadedFile) {
         fileMetrics = await extractMetricsFromFile(data.uploadedFile);
-        
+
         // Extract full text for OpenAI classification from Excel files
         const fileName = data.uploadedFile.name.toLowerCase();
         const reader = new FileReader();
-        
+
         const extractFullText = new Promise<string>((resolve) => {
           reader.onload = async (e) => {
             try {
               const base64 = e.target?.result as string;
               const base64Data = base64.split(",")[1];
-              
+
               if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
                 const response = await fetch("/api/parse-excel", {
                   method: "POST",
@@ -272,9 +272,9 @@ export default function Projects() {
           };
           reader.readAsDataURL(data.uploadedFile);
         });
-        
+
         fileText = await extractFullText;
-        
+
         allCustomMetrics = [
           ...allCustomMetrics,
           ...fileMetrics.map((m) => ({ ...m, source: "file" as const })),
@@ -316,7 +316,7 @@ export default function Projects() {
       setClassificationConfidence(0);
     } finally {
       setIsClassifying(false);
-      
+
       // Show unified metrics dialog with both AI and custom metrics
       setTimeout(() => {
         setIsRecommendedMetricsDialogOpen(true);
@@ -620,22 +620,22 @@ export default function Projects() {
       if (!user) {
         throw new Error("User not authenticated");
       }
-      
+
       const projectPayload = {
         ...pendingProjectData,
-        // userId 不需要传递，后端从session自动获取
+        // userId comes from the token, not the payload.
         type: pendingProjectData?.type || suggestedCategory,
         customCategory: pendingProjectData?.customCategory,
         estimatedCost: String(pendingProjectData?.estimatedCost || 0),
         roi: String(pendingProjectData?.roi || 0),
       };
-      
+
       console.log("Creating project:", projectPayload);
-      
+
       const response = await apiRequest("POST", "/api/projects", projectPayload);
       const project = await response.json();
       const projectId = project.id;
-      
+
       // Create metrics
       if (pendingMetrics.length > 0) {
         await Promise.all(
@@ -646,7 +646,7 @@ export default function Projects() {
             const parts = valueStr.trim().split(/\s+/);
             const numericValue = parts[0] || "";
             const unit = parts.slice(1).join(" ") || null;
-            
+
             return apiRequest("POST", `/api/projects/${projectId}/metrics`, {
               metricName: metric.metricName,
               value: numericValue, // Store just the numeric value
@@ -656,15 +656,15 @@ export default function Projects() {
           })
         );
       }
-      
+
       return { projectId, projectTitle: projectPayload.title, metricsCount: pendingMetrics.length };
     },
     onSuccess: async ({ projectId, projectTitle, metricsCount }) => {
-      // Invalidate projects cache and related queries (不需要userId参数，后端从session获取)
+      // Invalidate projects cache and related queries.
       await queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
       // Also invalidate dashboard stats and related queries to ensure Dashboard updates
       await queryClient.invalidateQueries({ queryKey: ['/api/dashboard'] });
-      
+
       toast({
         title: "Project Created Successfully",
         description: `Your project has been created with ${metricsCount} metric${metricsCount !== 1 ? 's' : ''}.`,
@@ -711,12 +711,12 @@ export default function Projects() {
       // Invalidate projects cache and related queries
       await queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/dashboard'] });
-      
+
       toast({
         title: "Project Deleted",
         description: "The project has been deleted successfully.",
       });
-      
+
       setIsDeleteDialogOpen(false);
       setProjectToDelete(null);
     },
@@ -768,9 +768,9 @@ export default function Projects() {
               <DialogHeader>
                 <DialogTitle>Create New Project</DialogTitle>
               </DialogHeader>
-              <ProjectForm 
+              <ProjectForm
                 key={isCreateDialogOpen ? 'create-form' : 'hidden'}
-                onSubmit={handleProjectSubmit} 
+                onSubmit={handleProjectSubmit}
                 initialData={pendingProjectData}
               />
             </DialogContent>
@@ -841,9 +841,9 @@ export default function Projects() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredProjects.map((project) => (
-            <ProjectCard 
-              key={project.id} 
-              project={project} 
+            <ProjectCard
+              key={project.id}
+              project={project}
               onDelete={handleDeleteClick}
             />
           ))}

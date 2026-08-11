@@ -26,27 +26,26 @@ export async function requireAuth(
 ): Promise<void> {
   try {
     const token = extractToken(req);
-    
+
     if (!token) {
       res.status(401).json({ error: "Unauthorized: No token provided" });
       return;
     }
 
     const payload = verifyToken(token);
-    
+
     if (!payload) {
       res.status(401).json({ error: "Unauthorized: Invalid token" });
       return;
     }
 
-    // 从数据库获取用户信息（可选，用于验证用户仍然存在）
+    // Re-read the user so a token outlives its account by at most one request.
     const user = await storage.getUser(payload.userId);
     if (!user) {
       res.status(401).json({ error: "Unauthorized: User not found" });
       return;
     }
 
-    // 设置 req.user
     req.user = {
       id: user.id,
       username: user.username,
@@ -72,10 +71,10 @@ export async function optionalAuth(
 ): Promise<void> {
   try {
     const token = extractToken(req);
-    
+
     if (token) {
       const payload = verifyToken(token);
-      
+
       if (payload) {
         const user = await storage.getUser(payload.userId);
         if (user) {
@@ -133,22 +132,18 @@ export async function registerUser(
   password: string,
   email?: string
 ): Promise<{ id: string; username: string; email: string | null }> {
-  // 检查用户名是否已存在
   const existingUser = await storage.getUserByUsername(username);
   if (existingUser) {
     throw new Error("Username already exists");
   }
 
-  // 哈希密码
   const hashedPassword = await hashPassword(password);
 
-  // 创建用户
   const user = await storage.createUser({
     username,
     password: hashedPassword,
   });
 
-  // 如果提供了邮箱，更新用户信息
   if (email) {
     await storage.updateUser(user.id, { email });
   }
@@ -160,18 +155,17 @@ export async function registerUser(
   };
 }
 
-// 用户登录
+/** Verifies credentials. The error message is deliberately identical for an
+ *  unknown user and a wrong password, so it cannot be used to enumerate accounts. */
 export async function loginUser(
   username: string,
   password: string
 ): Promise<{ id: string; username: string; email: string | null }> {
-  // 查找用户
   const user = await storage.getUserByUsername(username);
   if (!user) {
     throw new Error("Invalid username or password");
   }
 
-  // 验证密码
   const isValid = await verifyPassword(password, user.password);
   if (!isValid) {
     throw new Error("Invalid username or password");
@@ -183,4 +177,3 @@ export async function loginUser(
     email: user.email,
   };
 }
-

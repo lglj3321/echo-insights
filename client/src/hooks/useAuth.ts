@@ -9,7 +9,7 @@ export function useAuth() {
   const { data: user, isLoading, error } = useQuery({
     queryKey: ["/api/auth/user"],
     retry: false,
-    // 使用自定义queryFn，让401错误返回null而不是抛出
+    // 401 means signed out, which is a state rather than an error.
     queryFn: getQueryFn({ on401: "returnNull" }),
   });
 
@@ -28,31 +28,28 @@ export function useAuth() {
       }
     },
     onSuccess: () => {
-      // 清除 token
       localStorage.removeItem("token");
-      
-      // 清除所有查询缓存
+
       queryClient.clear();
-      
-      // 清除所有本地存储
+
       try {
         sessionStorage.clear();
         localStorage.removeItem("user");
       } catch (e) {
         // Ignore storage errors
       }
-      
+
       toast({
         title: "Logged out successfully",
         description: "You have been logged out. See you soon!",
       });
-      
+
       setTimeout(() => {
         navigate("/login");
       }, 100);
     },
     onError: (error: any) => {
-      // 即使 API 失败，也清除本地状态
+      // Clear local state even if the call failed — the user asked to sign out.
       localStorage.removeItem("token");
       queryClient.clear();
       try {
@@ -61,13 +58,13 @@ export function useAuth() {
       } catch (e) {
         // Ignore storage errors
       }
-      
+
       toast({
         title: "Logged out",
         description: error.message || "You have been logged out locally.",
         variant: "default",
       });
-      
+
       setTimeout(() => {
         navigate("/login");
       }, 100);

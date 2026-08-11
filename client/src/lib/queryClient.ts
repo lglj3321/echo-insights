@@ -12,15 +12,13 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  // 从 localStorage 读取 token
   const token = localStorage.getItem("token");
-  
+
   const headers: HeadersInit = {};
   if (data) {
     headers["Content-Type"] = "application/json";
   }
-  
-  // 如果有 token，添加到 Authorization header
+
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -32,7 +30,7 @@ export async function apiRequest(
     credentials: "include",
   });
 
-  // 如果返回 401，清除 token 并重定向到登录页
+  // An expired or revoked token: drop it and send the user to sign in.
   if (res.status === 401) {
     localStorage.removeItem("token");
     if (window.location.pathname !== "/login") {
@@ -52,7 +50,7 @@ export const getQueryFn: <T>(options: {
   async ({ queryKey }) => {
     // Build URL from queryKey
     let url = queryKey[0] as string;
-    
+
     // If queryKey[1] is an object, treat it as query parameters
     if (queryKey.length > 1 && typeof queryKey[1] === 'object' && queryKey[1] !== null) {
       const params = new URLSearchParams();
@@ -70,9 +68,8 @@ export const getQueryFn: <T>(options: {
       url = queryKey.join("/") as string;
     }
 
-    // 从 localStorage 读取 token
     const token = localStorage.getItem("token");
-    
+
     const headers: HeadersInit = {};
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
@@ -83,7 +80,7 @@ export const getQueryFn: <T>(options: {
       credentials: "include",
     });
 
-    // 如果返回 401，清除 token
+    // An expired or revoked token: drop it.
     if (res.status === 401) {
       localStorage.removeItem("token");
       if (unauthorizedBehavior === "returnNull") {

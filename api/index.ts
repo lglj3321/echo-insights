@@ -1,30 +1,31 @@
-// api/index.ts (Vercel Handler)
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { app, registerRoutes, errorHandler } from './_lib/index.js'; // 导入 app 和
- 
-// Vercel Serverless Functions 在两次调用之间会“冻结”
-// 我们需要一个变量来跟踪是否已经初始化了路由
+/**
+ * Vercel serverless entry point.
+ *
+ * The platform invokes this per request; it never listens on a port. Instances
+ * are frozen between invocations and recycled without warning, so module scope
+ * is the only cache available and it is per-instance.
+ *
+ * registerRoutes is async and mounts every handler onto the Express app.
+ * Running it on each invocation would stack duplicate middleware and repeat the
+ * cost, so it is guarded by a flag: the first request an instance serves pays
+ * for registration, and every later request on that instance reuses it.
+ */
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { app, registerRoutes, errorHandler } from "./_lib/index.js";
+
 let routesInitialized = false;
- 
+
 export default async (req: VercelRequest, res: VercelResponse) => {
   try {
     if (!routesInitialized) {
-      // 这是“冷启动”
-      // 1. 等待所有异步路由注册完成
       await registerRoutes(app);
-      
-      // 2. 在路由 *之后* 添加错误处理器
+      // Error handlers must come last, so this cannot move above the routes.
       app.use(errorHandler);
-      
-      // 3. 标记为已初始化
       routesInitialized = true;
       console.log("Routes initialized (cold start)");
     }
-    
-    // 4. 将请求交给配置好的 Express app 处理
-    // (req as any, res as any) 是必需的类型转换
-    await app(req as any, res as any);
 
+    await app(req as any, res as any);
   } catch (error) {
     console.error("Unhandled Vercel handler error:", error);
     res.status(500).json({ error: "Internal Server Error" });

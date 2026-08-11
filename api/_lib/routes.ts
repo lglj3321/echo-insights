@@ -1,7 +1,7 @@
 import type { Express } from "express";
 //import { createServer, type Server } from "http";
 import { storage } from "./storage.js";
-import { 
+import {
   insertProjectSchema,
   insertGoalSchema,
   insertTeamMemberSchema,
@@ -17,22 +17,18 @@ import { calculateImpactScore } from "./impactScore.js";
 import { z } from "zod";
 import { generateToken } from "./jwt.js";
 
-// 注册请求schema
 const registerSchema = z.object({
   username: z.string().min(3).max(50),
   password: z.string().min(6),
   email: z.string().email().optional(),
 });
 
-// 登录请求schema
 const loginSchema = z.object({
   username: z.string().min(1),
   password: z.string().min(1),
 });
 
 export async function registerRoutes(app: Express): Promise<void> {
-  // 认证API
-  // 获取当前用户信息
   app.get("/api/auth/user", optionalAuth, async (req, res) => {
     if (req.user) {
       const user = await storage.getUser(req.user.id);
@@ -49,7 +45,6 @@ export async function registerRoutes(app: Express): Promise<void> {
     res.status(401).json({ error: "Not authenticated" });
   });
 
-  // 更新用户信息
   app.patch("/api/user", requireAuth, async (req, res) => {
     try {
       const userId = req.user!.id;
@@ -77,21 +72,19 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 用户注册
   app.post("/api/auth/register", async (req, res) => {
     try {
       const validation = registerSchema.safeParse(req.body);
       if (!validation.success) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: "Validation failed",
-          details: validation.error.errors 
+          details: validation.error.errors
         });
       }
 
       const { username, password, email } = validation.data;
       const user = await registerUser(username, password, email);
 
-      // 生成 JWT Token
       const token = generateToken({
         userId: user.id,
         username: user.username,
@@ -101,7 +94,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         id: user.id,
         username: user.username,
         email: user.email,
-        token, // 返回 token
+        token,
       });
     } catch (error: any) {
       if (error.message === "Username already exists") {
@@ -112,21 +105,19 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 用户登录
   app.post("/api/auth/login", async (req, res) => {
     try {
       const validation = loginSchema.safeParse(req.body);
       if (!validation.success) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: "Validation failed",
-          details: validation.error.errors 
+          details: validation.error.errors
         });
       }
 
       const { username, password } = validation.data;
       const user = await loginUser(username, password);
 
-      // 生成 JWT Token
       const token = generateToken({
         userId: user.id,
         username: user.username,
@@ -136,7 +127,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         id: user.id,
         username: user.username,
         email: user.email,
-        token, // 返回 token
+        token,
       });
     } catch (error: any) {
       if (error.message === "Invalid username or password") {
@@ -147,11 +138,10 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 用户登出（JWT 是无状态的，登出主要是客户端删除 token）
+  // Logout is a client-side act: the token is stateless, so there is nothing to
+  // invalidate server-side. The endpoint exists to keep the client symmetric.
   app.post("/api/auth/logout", (req: any, res: any) => {
-    // JWT 是无状态的，服务端不需要做任何操作
-    // 客户端应该删除存储的 token
-    res.json({ 
+    res.json({
       message: "Logged out successfully",
       timestamp: new Date().toISOString(),
     });
@@ -161,7 +151,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     try {
       const userId = req.user!.id;
       const projects = await storage.getProjects(userId);
-      
+
       // Ensure all projects have up-to-date impactScore for consistency
       const projectsWithScores = await Promise.all(
         projects.map(async (project) => {
@@ -177,7 +167,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           return project;
         })
       );
-      
+
       res.json(projectsWithScores);
     } catch (error) {
       console.error("Error fetching projects:", error);
@@ -190,15 +180,15 @@ export async function registerRoutes(app: Express): Promise<void> {
     try {
       const userId = req.user!.id;
       const projects = await storage.getProjects(userId);
-      
+
       // Calculate statistics
       const totalProjects = projects.length;
-      
+
       // Calculate total feedback responses and average score
       let totalResponses = 0;
       let totalFeedbackScore = 0;
       let projectsWithFeedback = 0;
-      
+
       for (const project of projects) {
         try {
           const feedbackData = await storage.getProjectFeedbackScore(project.id);
@@ -211,14 +201,14 @@ export async function registerRoutes(app: Express): Promise<void> {
           // Skip if feedback data not available
         }
       }
-      
+
       const avgFeedbackScore = totalResponses > 0 ? totalFeedbackScore / totalResponses : 0;
-      
+
       // Calculate total CO2 saved
       const totalCo2Saved = projects.reduce((sum, p) => {
         return sum + (p.co2Saved ? Number(p.co2Saved) : 0);
       }, 0);
-      
+
       // Calculate projects added this month
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -227,12 +217,12 @@ export async function registerRoutes(app: Express): Promise<void> {
         const createdAt = p.createdAt instanceof Date ? p.createdAt : new Date(p.createdAt);
         return createdAt >= startOfMonth;
       }).length;
-      
+
       // Calculate response growth (this week vs last week)
       // For now, we'll use a simple calculation based on recent responses
       const recentResponses = totalResponses; // Simplified - in production, filter by date
       const responseGrowth = "+12%"; // Placeholder - would need date-based filtering
-      
+
       res.json({
         totalProjects,
         projectsThisMonth,
@@ -252,7 +242,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     try {
       const userId = req.user!.id;
       const projects = await storage.getProjects(userId);
-      
+
       // Count projects by type (use customCategory if available, otherwise use type)
       const typeCount: Record<string, number> = {};
       projects.forEach(project => {
@@ -260,7 +250,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         const category = project.customCategory || project.type || "Other";
         typeCount[category] = (typeCount[category] || 0) + 1;
       });
-      
+
       // Convert to array format and sort by count
       const distribution = Object.entries(typeCount)
         .map(([type, count]) => ({
@@ -268,7 +258,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           count,
         }))
         .sort((a, b) => b.count - a.count);
-      
+
       res.json(distribution);
     } catch (error) {
       console.error("Error fetching type distribution:", error);
@@ -281,17 +271,17 @@ export async function registerRoutes(app: Express): Promise<void> {
     try {
       const userId = req.user!.id;
       const projects = await storage.getProjects(userId);
-      
+
       // Get time range from query params (default: 6 months)
       const timeRange = req.query.range as string || '6months';
       const projectId = req.query.projectId as string | undefined;
-      
+
       // Calculate date range
       const now = new Date();
       let startDate: Date;
       let periodType: 'day' | 'week' | 'month' = 'month';
       let periodCount: number;
-      
+
       switch (timeRange) {
         case '7days':
           startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -323,24 +313,24 @@ export async function registerRoutes(app: Express): Promise<void> {
           periodType = 'month';
           periodCount = 6;
       }
-      
+
       // Filter projects if projectId is specified
-      const targetProjects = projectId 
+      const targetProjects = projectId
         ? projects.filter(p => p.id === projectId)
         : projects;
-      
+
       // Get all survey responses for target projects within date range
       const allResponses: Array<{ date: Date; score: number; projectId: string }> = [];
-        
+
       for (const project of targetProjects) {
           try {
           const responses = await storage.getSurveyResponses(project.id);
           for (const response of responses) {
             if (response.createdAt) {
-              const responseDate = response.createdAt instanceof Date 
-                ? response.createdAt 
+              const responseDate = response.createdAt instanceof Date
+                ? response.createdAt
                 : new Date(response.createdAt);
-              
+
               if (responseDate >= startDate && response.numericValue) {
                 allResponses.push({
                   date: responseDate,
@@ -354,15 +344,15 @@ export async function registerRoutes(app: Express): Promise<void> {
           // Skip if responses not available
         }
       }
-      
+
       // Group responses by period
       const trendData: { date: string; score: number; count: number }[] = [];
       const periodMap = new Map<string, { total: number; count: number }>();
-      
+
       for (const response of allResponses) {
         let periodKey: string;
         let displayLabel: string;
-        
+
         if (periodType === 'day') {
           const dateStr = response.date.toISOString().split('T')[0];
           periodKey = dateStr;
@@ -373,16 +363,16 @@ export async function registerRoutes(app: Express): Promise<void> {
           periodKey = `${year}-${month}`;
           displayLabel = new Date(year, month, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
         }
-        
+
         if (!periodMap.has(periodKey)) {
           periodMap.set(periodKey, { total: 0, count: 0 });
         }
-        
+
         const period = periodMap.get(periodKey)!;
         period.total += response.score;
         period.count += 1;
       }
-      
+
       // Generate all periods in range (even if no data)
       const periods: string[] = [];
       if (periodType === 'day') {
@@ -401,35 +391,35 @@ export async function registerRoutes(app: Express): Promise<void> {
           periods.push(`${year}-${month}`);
         }
       }
-      
+
       // Build trend data
       for (const periodKey of periods) {
         const period = periodMap.get(periodKey);
         let displayLabel: string;
-        
+
         if (periodType === 'day') {
           displayLabel = new Date(periodKey).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         } else {
           const [year, month] = periodKey.split('-').map(Number);
           displayLabel = new Date(year, month, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
         }
-        
+
         trendData.push({
           date: displayLabel,
-          score: period && period.count > 0 
-            ? Math.round((period.total / period.count) * 10) / 10 
+          score: period && period.count > 0
+            ? Math.round((period.total / period.count) * 10) / 10
             : 0,
           count: period?.count || 0,
         });
       }
-      
+
       // Calculate statistics
       const scores = trendData.filter(d => d.count > 0).map(d => d.score);
       const totalResponses = trendData.reduce((sum, d) => sum + d.count, 0);
-      const avgScore = scores.length > 0 
-        ? scores.reduce((sum, s) => sum + s, 0) / scores.length 
+      const avgScore = scores.length > 0
+        ? scores.reduce((sum, s) => sum + s, 0) / scores.length
         : 0;
-      
+
       // Calculate trend (comparing first half vs second half)
       let trend: 'up' | 'down' | 'stable' = 'stable';
       if (scores.length >= 4) {
@@ -438,11 +428,11 @@ export async function registerRoutes(app: Express): Promise<void> {
         const firstAvg = firstHalf.reduce((sum, s) => sum + s, 0) / firstHalf.length;
         const secondAvg = secondHalf.reduce((sum, s) => sum + s, 0) / secondHalf.length;
         const change = secondAvg - firstAvg;
-        
+
         if (change > 0.1) trend = 'up';
         else if (change < -0.1) trend = 'down';
       }
-      
+
       res.json({
         data: trendData,
         statistics: {
@@ -464,7 +454,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
       }
-      
+
       // Calculate impact score if not set or if metrics have changed
       const metrics = await storage.getProjectMetrics(req.params.id);
       if (metrics.length > 0) {
@@ -475,7 +465,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           project.impactScore = calculatedScore.toString();
         }
       }
-      
+
       res.json(project);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch project" });
@@ -523,7 +513,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     try {
       const userId = req.user!.id;
       const projectId = req.params.id;
-      
+
       // Verify project belongs to user
       const project = await storage.getProject(projectId);
       if (!project) {
@@ -532,7 +522,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       if (project.userId !== userId) {
         return res.status(403).json({ error: "Unauthorized to delete this project" });
       }
-      
+
       const deleted = await storage.deleteProject(projectId);
       if (!deleted) {
         return res.status(404).json({ error: "Project not found" });
@@ -564,12 +554,12 @@ export async function registerRoutes(app: Express): Promise<void> {
         return res.status(400).json({ error: validation.error });
       }
       const metric = await storage.createProjectMetric(validation.data);
-      
+
       // Recalculate and update impact score
       const allMetrics = await storage.getProjectMetrics(req.params.projectId);
       const impactScore = calculateImpactScore(allMetrics);
       await storage.updateProject(req.params.projectId, { impactScore: impactScore.toString() });
-      
+
       res.status(201).json(metric);
     } catch (error) {
       res.status(500).json({ error: "Failed to create project metric" });
@@ -600,41 +590,40 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-
   // Excel File Parsing API - Reads vertically (first column = metric names)
   app.post("/api/parse-excel", requireAuth, async (req, res) => {
     try {
       const { fileData } = req.body;
-      
+
       if (!fileData) {
         return res.status(400).json({ error: "fileData is required" });
       }
 
       // Import xlsx
       const XLSX = await import("xlsx");
-      
+
       // Convert base64 to buffer
       const buffer = Buffer.from(fileData, "base64");
-      
+
       // Parse Excel workbook
       const workbook = XLSX.read(buffer, { type: "buffer" });
-      
+
       // Check if workbook has sheets
       if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: "Excel file contains no sheets",
           text: "",
           metrics: []
         });
       }
-      
+
       // Get first sheet
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
-      
+
       // Convert to JSON (array of arrays)
       const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-      
+
       // Check if sheet has data
       if (!data || data.length === 0) {
         return res.json({
@@ -642,12 +631,12 @@ export async function registerRoutes(app: Express): Promise<void> {
           metrics: []
         });
       }
-      
+
       // Find header row and identify value/unit columns
       const headerRow = (data[0] as any[]) || [];
       let valueColIndex = -1;
       let unitColIndex = -1;
-      
+
       // Detect columns by keywords (case-insensitive)
       headerRow.forEach((header: any, index: number) => {
         const headerStr = String(header || "").toLowerCase();
@@ -658,28 +647,28 @@ export async function registerRoutes(app: Express): Promise<void> {
           unitColIndex = index;
         }
       });
-      
+
       // Extract metrics from first column (excluding header row)
       const metrics: Array<{ metricName: string; value: string }> = [];
       const rows = data.slice(1); // Skip header row
-      
+
       rows.forEach((row: any) => {
         if (!Array.isArray(row) || row.length === 0) return;
-        
+
         const metricName = row[0]; // First column = metric name
         if (!metricName || String(metricName).trim() === "") return;
-        
+
         // Build value string
         let valueStr = "";
         if (valueColIndex >= 0 && row[valueColIndex]) {
           valueStr = String(row[valueColIndex]);
         }
-        
+
         if (unitColIndex >= 0 && row[unitColIndex]) {
           const unit = String(row[unitColIndex]);
           valueStr = valueStr ? `${valueStr} ${unit}` : unit;
         }
-        
+
         if (valueStr.trim()) {
           metrics.push({
             metricName: String(metricName),
@@ -687,7 +676,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           });
         }
       });
-      
+
       // Build text representation for OpenAI
       let text = `Excel Spreadsheet: ${sheetName}\n\n`;
       if (metrics.length > 0) {
@@ -698,7 +687,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       } else {
         text += `No metrics found.`;
       }
-      
+
       res.json({
         text,
         metrics
@@ -708,7 +697,6 @@ export async function registerRoutes(app: Express): Promise<void> {
       res.status(500).json({ error: "Failed to parse Excel file" });
     }
   });
-
 
   // Project Classification API - Uses OpenAI for intelligent project categorization
   app.post("/api/classify-project", requireAuth, async (req, res) => {
@@ -739,12 +727,12 @@ export async function registerRoutes(app: Express): Promise<void> {
       });
     } catch (error) {
       console.error("OpenAI Classification error:", error);
-      
+
       // Fallback to simple keyword-based classification if OpenAI fails
       try {
         const { description, customMetrics, csvData } = req.body;
         const allText = `${description} ${(customMetrics || []).map((m: any) => m.name).join(" ")} ${(csvData || []).map((m: any) => m.name).join(" ")}`.toLowerCase();
-        
+
         const keywords: Record<string, string[]> = {
           Packaging: ["packaging", "package", "container", "recyclable", "plastic"],
           Energy: ["energy", "solar", "renewable", "carbon", "emission", "kwh"],
@@ -908,13 +896,13 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.get("/api/projects/:projectId/survey-questions", optionalAuth, async (req, res) => {
     try {
       const projectId = req.params.projectId;
-      
+
       // Verify project exists
       const project = await storage.getProject(projectId);
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
       }
-      
+
       const questions = await storage.getSurveyQuestions(projectId);
       res.json(questions);
     } catch (error) {
@@ -992,10 +980,10 @@ export async function registerRoutes(app: Express): Promise<void> {
         const submittedAnswer = String(req.body.answer || "").trim();
         const normalizedOptions = question.options.map(opt => String(opt).trim().toLowerCase());
         const normalizedAnswer = submittedAnswer.toLowerCase();
-        
-        const isValidOption = normalizedOptions.includes(normalizedAnswer) || 
+
+        const isValidOption = normalizedOptions.includes(normalizedAnswer) ||
                               question.options.some(opt => String(opt).trim().toLowerCase() === normalizedAnswer);
-        
+
         if (!isValidOption) {
           console.error("Invalid option submitted:", {
             submittedAnswer,
@@ -1003,13 +991,13 @@ export async function registerRoutes(app: Express): Promise<void> {
             questionId: question.id,
             questionText: question.questionText
           });
-          return res.status(400).json({ 
+          return res.status(400).json({
             error: `Invalid answer "${submittedAnswer}". Must be one of: ${question.options.join(", ")}`,
             validOptions: question.options,
             submittedAnswer: submittedAnswer
           });
         }
-        
+
         // Normalize the answer to match the exact option text (preserve original case)
         const exactMatch = question.options.find(opt => String(opt).trim().toLowerCase() === normalizedAnswer);
         if (exactMatch) {
@@ -1025,23 +1013,23 @@ export async function registerRoutes(app: Express): Promise<void> {
         numericValue: req.body.numericValue ? String(req.body.numericValue) : null,
         metadata: req.body.metadata || null,
       });
-      
+
       if (!validation.success) {
         console.error("Validation error:", validation.error);
-        return res.status(400).json({ 
-          error: "Validation failed", 
-          details: validation.error.errors 
+        return res.status(400).json({
+          error: "Validation failed",
+          details: validation.error.errors
         });
       }
-      
+
       // Generate or use provided sessionId for grouping responses from same survey completion
       const sessionId = req.body.sessionId || `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      
+
       // Add sessionId to metadata
       const existingMetadata = validation.data.metadata && typeof validation.data.metadata === 'object'
         ? validation.data.metadata as Record<string, any>
         : {};
-      
+
       const responseData = {
         ...validation.data,
         metadata: {
@@ -1049,7 +1037,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           sessionId,
         },
       };
-      
+
       const response = await storage.createSurveyResponse(responseData);
       res.status(201).json(response);
     } catch (error) {
@@ -1082,10 +1070,10 @@ export async function registerRoutes(app: Express): Promise<void> {
     try {
       const userId = req.user!.id;
       const projects = await storage.getProjects(userId);
-      
+
       // Import survey analytics utilities
       const { calculateNPS, calculateSentiment, determineSurveyStatus } = await import('./surveyAnalytics.js');
-      
+
       // Get surveys (projects that have survey questions)
       const surveys = await Promise.all(
         projects.map(async (project) => {
@@ -1093,15 +1081,15 @@ export async function registerRoutes(app: Express): Promise<void> {
           const responses = await storage.getSurveyResponses(project.id);
           const feedbackData = await storage.getProjectFeedbackScore(project.id);
           const qrScans = await storage.getQRScans(project.id);
-          
+
           if (questions.length === 0) return null;
-          
+
           // Calculate NPS using consistent function
           const npsData = calculateNPS(responses);
-          
+
           // Determine status using consistent function
           const status = determineSurveyStatus(feedbackData.count, questions.length);
-          
+
           return {
             id: project.id,
             title: `${project.title} Survey`,
@@ -1120,7 +1108,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           };
         })
       );
-      
+
       // Filter out nulls and return
       res.json(surveys.filter(s => s !== null));
     } catch (error) {
@@ -1134,11 +1122,11 @@ export async function registerRoutes(app: Express): Promise<void> {
     try {
       const userId = req.user!.id;
       const projectId = req.params.projectId;
-      
+
       // Verify project belongs to user
       const userProjects = await storage.getProjects(userId);
       const project = userProjects.find(p => p.id === projectId);
-      
+
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
       }
@@ -1154,7 +1142,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       const questionAnalysis = questions.map(question => {
         const questionResponses = responses.filter(r => r.questionId === question.id);
         const numericResponses = questionResponses.filter(r => r.numericValue !== null);
-        
+
         // Calculate distribution for choice questions
         const answerCounts: Record<string, number> = {};
         questionResponses.forEach(r => {
@@ -1164,7 +1152,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
         // Get all options from question (if it's a choice question)
         const questionOptions = question.options || [];
-        
+
         // Build distribution including all options (even if not selected)
         // For choice questions, always show all options
         const distribution = questionOptions.length > 0
@@ -1173,8 +1161,8 @@ export async function registerRoutes(app: Express): Promise<void> {
               return {
                 answer: option,
                 count,
-                percentage: questionResponses.length > 0 
-                  ? Math.round((count / questionResponses.length) * 100 * 10) / 10 
+                percentage: questionResponses.length > 0
+                  ? Math.round((count / questionResponses.length) * 100 * 10) / 10
                   : 0,
               };
             }) // Don't sort - keep original order of options
@@ -1182,8 +1170,8 @@ export async function registerRoutes(app: Express): Promise<void> {
               .map(([answer, count]) => ({
                 answer,
                 count,
-                percentage: questionResponses.length > 0 
-                  ? Math.round((count / questionResponses.length) * 100 * 10) / 10 
+                percentage: questionResponses.length > 0
+                  ? Math.round((count / questionResponses.length) * 100 * 10) / 10
                   : 0,
               }))
               .sort((a, b) => b.count - a.count); // Sort by count descending for non-choice questions
@@ -1208,7 +1196,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
       // Calculate NPS using consistent function
       const npsData = calculateNPS(responses);
-      
+
       // Calculate sentiment using consistent function
       const sentimentData = calculateSentiment(responses);
 
@@ -1256,15 +1244,15 @@ export async function registerRoutes(app: Express): Promise<void> {
     try {
       const userId = req.user!.id;
       const projectId = req.params.projectId;
-      
+
       // Verify project belongs to user
       const userProjects = await storage.getProjects(userId);
       const project = userProjects.find(p => p.id === projectId);
-      
+
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
       }
-      
+
       const responses = await storage.getSurveyResponses(projectId);
       const questions = await storage.getSurveyQuestions(projectId);
 
@@ -1272,7 +1260,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       const formattedResponses = responses.map(response => {
         const question = questions.find(q => q.id === response.questionId);
         const numericValue = response.numericValue ? Number(response.numericValue) : undefined;
-        
+
         // Calculate NPS category for this response
         let npsCategory: "Promoter" | "Passive" | "Detractor" | undefined = undefined;
         if (numericValue !== undefined) {
@@ -1283,25 +1271,25 @@ export async function registerRoutes(app: Express): Promise<void> {
           } else {
             npsScore = Math.max(0, Math.min(10, numericValue));
           }
-          
+
           if (npsScore >= 9) npsCategory = "Promoter";
           else if (npsScore >= 7) npsCategory = "Passive";
           else npsCategory = "Detractor";
         }
-        
+
         // Calculate sentiment
         let sentiment: "positive" | "negative" | "neutral" | undefined = undefined;
         if (numericValue !== undefined) {
           const maxScore = Math.max(...responses.filter(r => r.numericValue).map(r => Number(r.numericValue)));
           const isFivePointScale = maxScore <= 5;
-          
+
           if (isFivePointScale) {
             sentiment = numericValue >= 4 ? "positive" : numericValue <= 2 ? "negative" : "neutral";
           } else {
             sentiment = numericValue >= 8 ? "positive" : numericValue <= 4 ? "negative" : "neutral";
           }
         }
-        
+
         return {
           id: response.id,
           questionText: question?.questionText || "Unknown question",
@@ -1315,7 +1303,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       });
 
       // Sort by timestamp descending
-      formattedResponses.sort((a, b) => 
+      formattedResponses.sort((a, b) =>
         new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
 
@@ -1407,13 +1395,13 @@ export async function registerRoutes(app: Express): Promise<void> {
         return res.status(400).json({ error: "targetYear is required and must be a number" });
       }
 
-      const validScenario = ['optimistic', 'realistic', 'pessimistic'].includes(scenario) 
-        ? scenario 
+      const validScenario = ['optimistic', 'realistic', 'pessimistic'].includes(scenario)
+        ? scenario
         : 'realistic';
 
       // Get all project metrics
       const allMetrics = await storage.getProjectMetrics(projectId);
-      
+
       // Filter to selected metrics
       const selectedMetrics = allMetrics.filter(m => metricIds.includes(m.id));
 
@@ -1432,5 +1420,4 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
- 
 }

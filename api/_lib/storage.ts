@@ -1,5 +1,5 @@
-import { 
-  type User, 
+import {
+  type User,
   type InsertUser,
   type Project,
   type InsertProject,
@@ -27,53 +27,53 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
-  
+
   // Projects
   getProjects(userId: string): Promise<Project[]>;
   getProject(id: string): Promise<Project | undefined>;
   createProject(project: InsertProject): Promise<Project>;
   updateProject(id: string, updates: Partial<Project>): Promise<Project | undefined>;
   deleteProject(id: string): Promise<boolean>;
-  
+
   // Goals
   getGoals(userId: string): Promise<Goal[]>;
   getGoal(id: string): Promise<Goal | undefined>;
   createGoal(goal: InsertGoal): Promise<Goal>;
   updateGoal(id: string, updates: Partial<Goal>): Promise<Goal | undefined>;
   deleteGoal(id: string): Promise<boolean>;
-  
+
   // Team Members
   getTeamMembers(userId: string): Promise<TeamMember[]>;
   createTeamMember(member: InsertTeamMember): Promise<TeamMember>;
   updateTeamMember(id: string, updates: Partial<TeamMember>): Promise<TeamMember | undefined>;
   deleteTeamMember(id: string): Promise<boolean>;
-  
+
   // QR Code Scans
   recordQRScan(projectId: string): Promise<QRCodeScan>;
   getQRScans(projectId: string): Promise<number>;
-  
+
   // Survey Questions
   getSurveyQuestions(projectId: string): Promise<SurveyQuestion[]>;
   getSurveyQuestion(id: string): Promise<SurveyQuestion | undefined>;
   createSurveyQuestion(question: InsertSurveyQuestion): Promise<SurveyQuestion>;
   updateSurveyQuestion(id: string, updates: Partial<SurveyQuestion>): Promise<SurveyQuestion | undefined>;
   deleteSurveyQuestion(id: string): Promise<boolean>;
-  
+
   // Survey Responses
   createSurveyResponse(response: InsertSurveyResponse): Promise<SurveyResponse>;
   getSurveyResponses(projectId: string): Promise<SurveyResponse[]>;
   getProjectFeedbackScore(projectId: string): Promise<{ score: number; count: number }>;
-  
+
   // Categories
   getCategories(): Promise<Category[]>;
   getCategory(id: string): Promise<Category | undefined>;
   createCategory(category: InsertCategory): Promise<Category>;
-  
+
   // Category Metrics
   getCategoryMetrics(categoryId: string): Promise<CategoryMetric[]>;
   getRecommendedMetrics(categoryId: string): Promise<CategoryMetric[]>;
   createCategoryMetric(metric: InsertCategoryMetric): Promise<CategoryMetric>;
-  
+
   // Project Metrics
   getProjectMetrics(projectId: string): Promise<ProjectMetric[]>;
   createProjectMetric(metric: InsertProjectMetric): Promise<ProjectMetric>;
@@ -119,8 +119,8 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { 
-      ...insertUser, 
+    const user: User = {
+      ...insertUser,
       id,
       fullName: null,
       email: null,
@@ -200,15 +200,15 @@ export class MemStorage implements IStorage {
       }
     });
     this.surveyResponses.delete(id);
-    
+
     // 2. Delete survey questions
     const questionsToDelete = Array.from(this.surveyQuestions.values())
       .filter(q => q.projectId === id);
     questionsToDelete.forEach(q => this.surveyQuestions.delete(q.id));
-    
+
     // 3. Delete QR code scans (stored as Map<projectId, Array>)
     this.qrScans.delete(id);
-    
+
     // 4. Delete project metrics
     // projectMetrics is Map<projectId, ProjectMetric[]>, so we need to flatten the arrays
     const allMetrics = Array.from(this.projectMetrics.values()).flat();
@@ -224,7 +224,7 @@ export class MemStorage implements IStorage {
         }
       }
     });
-    
+
     // Finally, delete the project itself
     return this.projects.delete(id);
   }
@@ -351,7 +351,7 @@ export class MemStorage implements IStorage {
   // Survey Response methods
   async createSurveyResponse(response: InsertSurveyResponse): Promise<SurveyResponse> {
     const id = randomUUID();
-    
+
     // Support custom createdAt from metadata (for testing purposes)
     let createdAt = new Date();
     if (response.metadata && typeof response.metadata === 'object' && 'createdAt' in response.metadata) {
@@ -362,7 +362,7 @@ export class MemStorage implements IStorage {
         createdAt = customDate;
       }
     }
-    
+
     const newResponse: SurveyResponse = {
       ...response,
       id,
@@ -383,7 +383,7 @@ export class MemStorage implements IStorage {
   async getProjectFeedbackScore(projectId: string): Promise<{ score: number; count: number }> {
     const responses = this.surveyResponses.get(projectId) || [];
     if (responses.length === 0) return { score: 0, count: 0 };
-    
+
     // Count unique surveys (group by sessionId in metadata)
     const sessionIds = new Set<string>();
     responses.forEach(r => {
@@ -394,7 +394,7 @@ export class MemStorage implements IStorage {
         }
       }
     });
-    
+
     // If no sessionIds found, group by time windows (5 minutes)
     let uniqueSurveyCount = sessionIds.size;
     if (uniqueSurveyCount === 0) {
@@ -411,7 +411,7 @@ export class MemStorage implements IStorage {
       });
       uniqueSurveyCount = timeGroups.size;
     }
-    
+
     // Calculate average score from numeric responses
     const numericResponses = responses.filter(r => r.numericValue !== null && r.numericValue !== undefined);
     const avg = numericResponses.length > 0
@@ -420,9 +420,9 @@ export class MemStorage implements IStorage {
           return acc + (isNaN(value) ? 0 : value);
         }, 0) / numericResponses.length
       : 0;
-    
-    return { 
-      score: Math.round(avg * 10) / 10, 
+
+    return {
+      score: Math.round(avg * 10) / 10,
       count: uniqueSurveyCount // Return count of unique surveys, not individual responses
     };
   }
@@ -594,35 +594,35 @@ export class DatabaseStorage implements IStorage {
       // 1. Delete survey responses (references survey_questions and projects)
       await this.dbInstance.delete(schema.surveyResponses)
         .where(eq(schema.surveyResponses.projectId, id));
-      
+
       // 2. Delete survey questions (references projects)
       await this.dbInstance.delete(schema.surveyQuestions)
         .where(eq(schema.surveyQuestions.projectId, id));
-      
+
       // 3. Delete QR code scans (references projects)
       await this.dbInstance.delete(schema.qrCodeScans)
         .where(eq(schema.qrCodeScans.projectId, id));
-      
+
       // 4. Delete project metrics (references projects)
       await this.dbInstance.delete(schema.projectMetrics)
         .where(eq(schema.projectMetrics.projectId, id));
-      
+
       // 5. Delete goals (references projects via userId, but we'll delete by projectId if there's a direct reference)
       // Note: Goals are linked to userId, not projectId, so we don't delete them here
-      
+
       // 6. Delete team members (references userId, not projectId, so we don't delete them here)
-      
+
       // 7. Delete comments (if exists - check schema)
       // Note: Comments table might not exist, so we'll skip if it doesn't
-      
+
       // 8. Delete budget allocations (if exists - check schema)
       // Note: Budget allocations table might not exist, so we'll skip if it doesn't
-      
+
       // Finally, delete the project itself
       const result = await this.dbInstance.delete(schema.projects)
         .where(eq(schema.projects.id, id))
         .returning();
-      
+
       return result.length > 0;
     } catch (error) {
       console.error("Error deleting project and related data:", error);
@@ -747,11 +747,11 @@ export class DatabaseStorage implements IStorage {
     const allResponses = await this.dbInstance.select()
       .from(schema.surveyResponses)
       .where(eq(schema.surveyResponses.projectId, projectId));
-    
+
     if (allResponses.length === 0) {
       return { score: 0, count: 0 };
     }
-    
+
     // Count unique surveys (group by sessionId in metadata)
     const sessionIds = new Set<string>();
     allResponses.forEach(r => {
@@ -762,11 +762,11 @@ export class DatabaseStorage implements IStorage {
         }
       }
     });
-    
+
     // If no sessionIds found, fall back to counting by unique questionId groups
     // (assume responses within 5 minutes of each other are from same survey)
     let uniqueSurveyCount = sessionIds.size;
-    
+
     if (uniqueSurveyCount === 0) {
       // Group responses by time windows (5 minutes)
       const timeGroups = new Map<number, Set<string>>();
@@ -782,7 +782,7 @@ export class DatabaseStorage implements IStorage {
       });
       uniqueSurveyCount = timeGroups.size;
     }
-    
+
     // Calculate average score from numeric responses
     const numericResponses = allResponses.filter(r => r.numericValue !== null && r.numericValue !== undefined);
     const avg = numericResponses.length > 0
@@ -791,7 +791,7 @@ export class DatabaseStorage implements IStorage {
           return sum + (isNaN(value) ? 0 : value);
         }, 0) / numericResponses.length
       : 0;
-    
+
     return {
       score: Math.round(avg * 10) / 10,
       count: uniqueSurveyCount, // Return count of unique surveys, not individual responses
@@ -855,9 +855,9 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-// 根据环境变量选择存储方式
-// 如果没有DATABASE_URL，使用内存存储（用于测试）
-// 如果有DATABASE_URL，使用数据库存储（生产环境）
-export const storage = process.env.DATABASE_URL 
-  ? new DatabaseStorage() 
+// PostgreSQL when DATABASE_URL is configured, otherwise in-memory.
+// The in-memory adapter is for local development and the test suite — its
+// contents are per-process, so it is not a deployment mode.
+export const storage = process.env.DATABASE_URL
+  ? new DatabaseStorage()
   : new MemStorage();

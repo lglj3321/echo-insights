@@ -3,7 +3,12 @@ import { drizzle } from 'drizzle-orm/neon-serverless';
 import ws from "ws";
 import * as schema from "../../shared/schema.js";
 
-// 只有在使用数据库存储时才初始化数据库连接
+// Created only when a connection string is present, so importing this module
+// never fails and the in-memory adapter can be used instead.
+//
+// The driver reaches PostgreSQL over a WebSocket rather than a TCP pool: a
+// serverless function is frozen between invocations and cannot hold a pool
+// open. See docs/architecture.md.
 let pool: Pool | null = null;
 let db: ReturnType<typeof drizzle> | null = null;
 
@@ -13,5 +18,5 @@ if (process.env.DATABASE_URL) {
   db = drizzle({ client: pool, schema });
 }
 
-// 导出时检查，如果使用内存存储，这些值可能为null
+// Both are null when DATABASE_URL is unset — callers must check.
 export { pool, db };
