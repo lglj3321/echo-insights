@@ -44,7 +44,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { apiRequest, queryClient, getQueryFn } from "@/lib/queryClient";
+import { apiRequest, queryClient, getQueryFn, authFetch } from "@/lib/queryClient";
 
 export default function Projects() {
   const { toast } = useToast();
@@ -176,7 +176,7 @@ export default function Projects() {
             const base64 = e.target?.result as string;
             const base64Data = base64.split(",")[1];
 
-            const response = await fetch("/api/parse-excel", {
+            const response = await authFetch("/api/parse-excel", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ fileData: base64Data }),
@@ -252,7 +252,7 @@ export default function Projects() {
               const base64Data = base64.split(",")[1];
 
               if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
-                const response = await fetch("/api/parse-excel", {
+                const response = await authFetch("/api/parse-excel", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ fileData: base64Data }),
@@ -284,7 +284,7 @@ export default function Projects() {
       setPendingCustomMetrics(allCustomMetrics);
 
       // Call classification API
-      const classificationResponse = await fetch("/api/classify-project", {
+      const classificationResponse = await authFetch("/api/classify-project", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

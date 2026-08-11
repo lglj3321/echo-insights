@@ -6,7 +6,7 @@ import { ProjectTypeChart } from "@/components/ProjectTypeChart";
 import { FeedbackTrendChart } from "@/components/FeedbackTrendChart";
 import { FolderKanban, Users, TrendingUp, Leaf, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getQueryFn } from "@/lib/queryClient";
+import { getQueryFn, authFetch } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 // The API returns schema records (decimals as strings, plus createdAt); the
 // presentation components take a narrower view-model. Keep them distinct so
@@ -60,7 +60,7 @@ export default function Dashboard() {
       const projectsWithFeedbackData = await Promise.all(
         projects.map(async (project) => {
           try {
-            const response = await fetch(`/api/projects/${project.id}/feedback-score`, {
+            const response = await authFetch(`/api/projects/${project.id}/feedback-score`, {
               credentials: "include",
             });
             if (response.ok) {

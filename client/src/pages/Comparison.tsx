@@ -14,7 +14,7 @@ import {
   BarChart3,
   Loader2,
 } from "lucide-react";
-import { getQueryFn } from "@/lib/queryClient";
+import { getQueryFn, authFetch } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { getProjectImpactScore } from "@/lib/impactScore";
 import type { Project as ProjectType } from "@/components/ProjectCard";
@@ -46,7 +46,7 @@ export default function Comparison() {
       const projectsWithMetricsData = await Promise.all(
         projects.map(async (project) => {
           try {
-            const response = await fetch(`/api/projects/${project.id}/metrics`, {
+            const response = await authFetch(`/api/projects/${project.id}/metrics`, {
               credentials: "include",
             });
             if (response.ok) {

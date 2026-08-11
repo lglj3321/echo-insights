@@ -19,9 +19,12 @@ import Settings from "@/pages/Settings";
 import Survey from "@/pages/Survey";
 import Goals from "@/pages/Goals";
 import Team from "@/pages/Team";
+import QRCodes from "@/pages/QRCodes";
+import Scorecard from "@/pages/Scorecard";
+import ImpactCalculator from "@/pages/ImpactCalculator";
 import { useEffect } from "react";
 
-// 认证保护组件
+/** Redirects to /login unless a valid session is present. */
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
   const [, navigate] = useLocation();
@@ -89,6 +92,21 @@ function Router() {
           <SurveyResults />
         </ProtectedRoute>
       </Route>
+      <Route path="/qr-codes">
+        <ProtectedRoute>
+          <QRCodes />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/scorecard">
+        <ProtectedRoute>
+          <Scorecard />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/calculator">
+        <ProtectedRoute>
+          <ImpactCalculator />
+        </ProtectedRoute>
+      </Route>
       <Route path="/goals">
         <ProtectedRoute>
           <Goals />
@@ -117,8 +135,7 @@ function AppContent() {
     "--sidebar-width-icon": "3rem",
   };
 
-  // 登录页面不显示侧边栏
-  // 如果已认证且正在登录页面，重定向到首页
+  // Signed-in users have no reason to sit on the login page.
   useEffect(() => {
     if (!isLoading && isAuthenticated && location === "/login") {
       navigate("/");

@@ -4,7 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Trophy, Award, TrendingUp, Target, Leaf, Droplet, Zap, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getQueryFn } from "@/lib/queryClient";
+import { getQueryFn, authFetch } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import type { Project } from "@/components/ProjectCard";
 import type { Goal } from "@shared/schema";
@@ -49,7 +49,7 @@ export default function Scorecard() {
       const scores = await Promise.all(
         projects.map(async (project) => {
           try {
-            const response = await fetch(`/api/projects/${project.id}/feedback-score`, {
+            const response = await authFetch(`/api/projects/${project.id}/feedback-score`, {
               credentials: "include",
             });
             if (response.ok) {

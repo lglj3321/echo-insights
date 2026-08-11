@@ -1,4 +1,4 @@
-import { Home, FolderKanban, Settings, Target, Users, ChevronUp, LogOut, GitCompare, MessageSquare } from "lucide-react";
+import { Home, FolderKanban, Settings, Target, Users, ChevronUp, LogOut, GitCompare, MessageSquare, QrCode, Trophy, Calculator } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -42,6 +42,21 @@ const menuItems = [
     title: "Feedback",
     url: "/feedback",
     icon: MessageSquare,
+  },
+  {
+    title: "QR Codes",
+    url: "/qr-codes",
+    icon: QrCode,
+  },
+  {
+    title: "Scorecard",
+    url: "/scorecard",
+    icon: Trophy,
+  },
+  {
+    title: "Impact Calculator",
+    url: "/calculator",
+    icon: Calculator,
   },
   {
     title: "Goals & Targets",

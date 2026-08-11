@@ -5,7 +5,7 @@ import { SurveyQuestion } from "@/components/SurveyQuestion";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getQueryFn, apiRequest } from "@/lib/queryClient";
+import { getQueryFn, apiRequest, authFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { SurveyQuestion as SurveyQuestionType } from "@shared/schema";
 
@@ -31,7 +31,7 @@ export default function Survey({ projectId: propProjectId }: SurveyProps) {
     queryKey: ['/api/projects', projectId, 'survey-questions'],
     queryFn: async () => {
       if (!projectId) return [];
-      const response = await fetch(`/api/projects/${projectId}/survey-questions`, {
+      const response = await authFetch(`/api/projects/${projectId}/survey-questions`, {
         credentials: "include",
       });
       if (!response.ok) {
@@ -60,7 +60,7 @@ export default function Survey({ projectId: propProjectId }: SurveyProps) {
         headers["Authorization"] = `Bearer ${token}`;
       }
       
-      const response = await fetch("/api/survey-responses", {
+      const response = await authFetch("/api/survey-responses", {
         method: "POST",
         headers,
         credentials: "include",

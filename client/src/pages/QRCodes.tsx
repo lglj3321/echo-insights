@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getQueryFn } from "@/lib/queryClient";
+import { getQueryFn, authFetch } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import type { Project } from "@/components/ProjectCard";
 
@@ -47,8 +47,8 @@ export default function QRCodes() {
         projects.map(async (project) => {
           try {
             const [scansResponse, feedbackResponse] = await Promise.all([
-              fetch(`/api/projects/${project.id}/qr-scans`, { credentials: "include" }),
-              fetch(`/api/projects/${project.id}/feedback-score`, { credentials: "include" }),
+              authFetch(`/api/projects/${project.id}/qr-scans`),
+              authFetch(`/api/projects/${project.id}/feedback-score`),
             ]);
 
             const scansData = scansResponse.ok ? await scansResponse.json() : { count: 0 };

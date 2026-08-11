@@ -7,6 +7,23 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+/**
+ * fetch with the bearer token attached when one is present.
+ *
+ * Use this instead of calling fetch directly: cookies alone are not enough,
+ * because the API authenticates with a JWT in the Authorization header.
+ * Requests on the anonymous survey path work through it too — without a token
+ * it is a plain fetch.
+ */
+export async function authFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const token = localStorage.getItem("token");
+  const headers = new Headers(init.headers);
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return fetch(url, { ...init, headers, credentials: "include" });
+}
+
 export async function apiRequest(
   method: string,
   url: string,
