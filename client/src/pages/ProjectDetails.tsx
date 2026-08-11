@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRoute } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,11 +20,15 @@ import {
   Upload,
   Clock,
   MessageSquare,
+  Loader2,
 } from "lucide-react";
 import { Link } from "wouter";
 import { ProjectUpdateDialog } from "@/components/ProjectUpdateDialog";
 import { CreateSurveyDialog } from "@/components/CreateSurveyDialog";
 import { useToast } from "@/hooks/use-toast";
+import { getQueryFn } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { Project, ProjectMetric } from "@shared/schema";
 
 interface MetricScore {
   name: string;
@@ -63,16 +68,8 @@ export default function ProjectDetails() {
   const [showMergeBanner, setShowMergeBanner] = useState(isMerged && mergeContext);
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
   const [isCreateSurveyDialogOpen, setIsCreateSurveyDialogOpen] = useState(false);
-  const [projectUpdates, setProjectUpdates] = useState<ProjectUpdate[]>([
-    {
-      period: "Q4",
-      year: "2024",
-      timestamp: "2024-10-15T10:00:00Z",
-      notes: "Initial project creation",
-      metricUpdates: [],
-      newMetrics: [],
-    },
-  ]);
+  // Initialize project updates with creation date from project
+  const [projectUpdates, setProjectUpdates] = useState<ProjectUpdate[]>([]);
   const [metricWeights, setMetricWeights] = useState<Record<string, number>>({
     "Environmental Impact": 40,
     "Resource Efficiency": 30,
@@ -80,130 +77,179 @@ export default function ProjectDetails() {
     "Social Impact": 10,
   });
 
-  // TODO: Remove mock data - replace with actual API data
-  const mockProjects = [
-    {
-      id: "1",
-      title: "100% Recycled Packaging Initiative",
-      description: "Transition all product packaging to 100% recycled materials to reduce environmental impact and meet our 2025 sustainability goals. This initiative includes redesigning packaging, sourcing certified recycled materials, and educating consumers about proper recycling.",
-      category: "Packaging",
-      estimatedCost: 45000,
-      roi: 18,
-      status: "active",
-      createdAt: "2024-10-15",
-      uploadedFiles: [
-        { name: "packaging-analysis.pdf", size: "2.4 MB", uploadedAt: "2024-10-15" },
-        { name: "supplier-quotes.xlsx", size: "456 KB", uploadedAt: "2024-10-16" },
-      ],
-    },
-    {
-      id: "2",
-      title: "Solar Energy Installation",
-      description: "Install solar panels on manufacturing facilities to reduce energy costs and carbon emissions. This comprehensive project includes site assessment, installation, and grid integration.",
-      category: "Energy",
-      estimatedCost: 120000,
-      roi: 25,
-      status: "active",
-      createdAt: "2024-09-20",
-      uploadedFiles: [
-        { name: "solar-feasibility-study.pdf", size: "3.1 MB", uploadedAt: "2024-09-20" },
-      ],
-    },
-    {
-      id: "3",
-      title: "Local Sourcing Initiative",
-      description: "Source 80% of ingredients from local suppliers within 100 miles to reduce transportation emissions and support the local economy.",
-      category: "Sourcing",
-      estimatedCost: 28000,
-      roi: 12,
-      status: "active",
-      createdAt: "2024-08-10",
-      uploadedFiles: [],
-    },
-    {
-      id: "4",
-      title: "Water Recycling System",
-      description: "Implement advanced water recycling in production facilities to reduce water consumption by 60% and lower utility costs.",
-      category: "Water",
-      estimatedCost: 75000,
-      roi: 20,
-      status: "active",
-      createdAt: "2024-07-15",
-      uploadedFiles: [
-        { name: "water-system-blueprint.pdf", size: "1.8 MB", uploadedAt: "2024-07-15" },
-        { name: "cost-analysis.xlsx", size: "320 KB", uploadedAt: "2024-07-16" },
-      ],
-    },
-    {
-      id: "5",
-      title: "Zero Waste Initiative",
-      description: "Achieve zero waste to landfill by 2025 through comprehensive recycling, composting, and waste reduction programs.",
-      category: "Waste",
-      estimatedCost: 35000,
-      roi: 15,
-      status: "active",
-      createdAt: "2024-06-01",
-      uploadedFiles: [],
-    },
-    {
-      id: "6",
-      title: "Electric Fleet Transition",
-      description: "Replace delivery vehicles with electric alternatives to reduce emissions and fuel costs while improving brand image.",
-      category: "Logistics",
-      estimatedCost: 95000,
-      roi: 22,
-      status: "active",
-      createdAt: "2024-05-12",
-      uploadedFiles: [
-        { name: "fleet-analysis.pdf", size: "2.2 MB", uploadedAt: "2024-05-12" },
-      ],
-    },
-  ];
+  // Fetch project data from API
+  const { data: project, isLoading: isLoadingProject, error: projectError } = useQuery<Project>({
+    queryKey: [`/api/projects/${projectId}`],
+    queryFn: getQueryFn({ on401: "throw" }),
+    enabled: !!projectId,
+  });
 
-  // Find the specific project by ID, or default to the first one
-  const mockProject = mockProjects.find(p => p.id === projectId) || mockProjects[0];
+  // Set initial update when project is loaded
+  useEffect(() => {
+    if (project && projectUpdates.length === 0) {
+      const createdAt = project.createdAt ? (project.createdAt instanceof Date ? project.createdAt : new Date(project.createdAt)) : new Date();
+      const createdDate = createdAt;
+      const quarter = Math.floor(createdDate.getMonth() / 3) + 1;
+      const period = `Q${quarter}`;
+      const year = createdDate.getFullYear().toString();
+      
+      setProjectUpdates([{
+        period,
+        year,
+        timestamp: createdAt.toISOString(),
+        notes: "Initial project creation",
+        metricUpdates: [],
+        newMetrics: [],
+      }]);
+    }
+  }, [project, projectUpdates.length]);
 
-  const mockMetrics: MetricScore[] = [
-    { name: "CO₂ Emissions Reduced", value: "3.2 Tons/Quarter", normalizedScore: 85, type: "Environmental Impact" },
-    { name: "Recycled Material Usage", value: "92%", normalizedScore: 92, type: "Environmental Impact" },
-    { name: "Plastic Elimination", value: "1,200 kg/year", normalizedScore: 78, type: "Environmental Impact" },
-    { name: "Water Conservation", value: "1,250 Gallons/Month", normalizedScore: 65, type: "Resource Efficiency" },
-    { name: "Energy Savings", value: "450 kWh/Month", normalizedScore: 71, type: "Resource Efficiency" },
-    { name: "Packaging Weight Reduction", value: "25 grams per unit", normalizedScore: 88, type: "Resource Efficiency" },
-    { name: "Cost Savings", value: "$12,500/year", normalizedScore: 55, type: "Cost Effectiveness" },
-    { name: "ROI Timeline", value: "18 months", normalizedScore: 68, type: "Cost Effectiveness" },
-    { name: "Consumer Satisfaction", value: "4.6/5", normalizedScore: 92, type: "Social Impact" },
-    { name: "Brand Value Increase", value: "15%", normalizedScore: 75, type: "Social Impact" },
-  ];
+  // Fetch project metrics from API
+  const { data: projectMetrics = [], isLoading: isLoadingMetrics } = useQuery<ProjectMetric[]>({
+    queryKey: [`/api/projects/${projectId}/metrics`],
+    queryFn: getQueryFn({ on401: "throw" }),
+    enabled: !!projectId && !!project,
+  });
 
-  const groupedMetrics: MetricTypeWeight[] = Object.entries(
-    mockMetrics.reduce((acc, metric) => {
-      if (!acc[metric.type]) {
-        acc[metric.type] = [];
+  // Helper function to classify metric type based on name
+  const classifyMetricType = (metricName: string): string => {
+    const name = metricName.toLowerCase();
+    
+    // Environmental Impact
+    if (name.includes("co2") || name.includes("carbon") || name.includes("emission") || 
+        name.includes("greenhouse") || name.includes("ghg") || name.includes("pollution") ||
+        name.includes("waste") || name.includes("recycl") || name.includes("plastic")) {
+      return "Environmental Impact";
+    }
+    
+    // Resource Efficiency
+    if (name.includes("water") || name.includes("energy") || name.includes("power") ||
+        name.includes("electricity") || name.includes("fuel") || name.includes("consumption") ||
+        name.includes("efficiency") || name.includes("usage") || name.includes("reduction")) {
+      return "Resource Efficiency";
+    }
+    
+    // Cost Effectiveness
+    if (name.includes("cost") || name.includes("saving") || name.includes("roi") ||
+        name.includes("revenue") || name.includes("profit") || name.includes("budget") ||
+        name.includes("expense") || name.includes("financial") || name.includes("economic")) {
+      return "Cost Effectiveness";
+    }
+    
+    // Social Impact
+    if (name.includes("satisfaction") || name.includes("engagement") || name.includes("awareness") ||
+        name.includes("education") || name.includes("community") || name.includes("social") ||
+        name.includes("brand") || name.includes("reputation") || name.includes("employee")) {
+      return "Social Impact";
+    }
+    
+    // Default to Environmental Impact
+    return "Environmental Impact";
+  };
+
+  // Helper function to calculate normalized score if not provided
+  const calculateNormalizedScore = (metricName: string, value: string, unit?: string | null): number => {
+    // Try to extract numeric value
+    const numericMatch = value.match(/[\d.]+/);
+    if (!numericMatch) return 50; // Default score if no number found
+    
+    const numericValue = parseFloat(numericMatch[0]);
+    if (isNaN(numericValue)) return 50;
+    
+    const name = metricName.toLowerCase();
+    
+    // CO2/Carbon emissions - lower is better, normalize to 0-100
+    if (name.includes("co2") || name.includes("carbon") || name.includes("emission")) {
+      // Assume 0-10 tons is good (100), 10+ tons is worse
+      return Math.min(100, Math.max(0, 100 - (numericValue * 10)));
+    }
+    
+    // Water/Energy savings - higher is better
+    if (name.includes("water") || name.includes("energy") || name.includes("saving")) {
+      // Assume 0-1000 units is good, scale to 0-100
+      return Math.min(100, (numericValue / 10));
+    }
+    
+    // Percentage - use directly
+    if (value.includes("%") || unit?.includes("%")) {
+      return Math.min(100, Math.max(0, numericValue));
+    }
+    
+    // Cost savings - higher is better, but scale differently
+    if (name.includes("cost") || name.includes("saving")) {
+      // Assume 0-10000 is good, scale to 0-100
+      return Math.min(100, (numericValue / 100));
+    }
+    
+    // Rating (1-5 scale) - convert to 0-100
+    if (name.includes("rating") || name.includes("satisfaction") || name.includes("score")) {
+      if (numericValue <= 5) {
+        return (numericValue / 5) * 100;
       }
-      acc[metric.type].push(metric);
-      return acc;
-    }, {} as Record<string, MetricScore[]>)
-  ).map(([type, metrics]) => ({
-    type,
-    weight: metricWeights[type] || 25,
-    metrics,
-  }));
+    }
+    
+    // Default: scale based on value magnitude
+    if (numericValue < 1) {
+      return numericValue * 100;
+    } else if (numericValue < 100) {
+      return numericValue;
+    } else {
+      return Math.min(100, 100 - (numericValue / 100));
+    }
+  };
+
+  // Convert ProjectMetric to MetricScore format
+  const metrics: MetricScore[] = useMemo(() => {
+    return projectMetrics.map((metric) => {
+      const normalizedScore = metric.normalizedScore 
+        ? Number(metric.normalizedScore) 
+        : calculateNormalizedScore(metric.metricName, metric.value, metric.unit);
+      
+      return {
+        name: metric.metricName,
+        value: metric.value,
+        normalizedScore: Math.round(normalizedScore),
+        type: classifyMetricType(metric.metricName),
+      };
+    });
+  }, [projectMetrics]);
+
+  const groupedMetrics: MetricTypeWeight[] = useMemo(() => {
+    return Object.entries(
+      metrics.reduce((acc, metric) => {
+        if (!acc[metric.type]) {
+          acc[metric.type] = [];
+        }
+        acc[metric.type].push(metric);
+        return acc;
+      }, {} as Record<string, MetricScore[]>)
+    ).map(([type, metrics]) => ({
+      type,
+      weight: metricWeights[type] || 25,
+      metrics,
+    }));
+  }, [metrics, metricWeights]);
 
   const calculateImpactScore = () => {
     let totalWeightedScore = 0;
     let totalWeight = 0;
 
     groupedMetrics.forEach(group => {
-      const groupAverage = group.metrics.reduce((sum, m) => sum + m.normalizedScore, 0) / group.metrics.length;
-      totalWeightedScore += groupAverage * group.weight;
-      totalWeight += group.weight;
+      if (group.metrics.length > 0) {
+        const groupAverage = group.metrics.reduce((sum, m) => sum + m.normalizedScore, 0) / group.metrics.length;
+        totalWeightedScore += groupAverage * group.weight;
+        totalWeight += group.weight;
+      }
     });
 
     return totalWeight > 0 ? Math.round(totalWeightedScore / totalWeight) : 0;
   };
 
-  const impactScore = calculateImpactScore();
+  // Always use impactScore from project (server-calculated) for consistency
+  // If not available, calculate it (but this should be rare as server calculates it)
+  const impactScore = project?.impactScore 
+    ? Number(project.impactScore) 
+    : (projectMetrics.length > 0 ? calculateImpactScore() : 0);
 
   const handleWeightChange = (type: string, value: number[]) => {
     setMetricWeights(prev => ({
@@ -296,7 +342,37 @@ export default function ProjectDetails() {
     });
   };
 
-  const existingMetricNames = mockMetrics.map(m => m.name);
+  const existingMetricNames = metrics.map(m => m.name);
+
+  // Loading state
+  if (isLoadingProject) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Loading project...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (projectError || !project) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center space-y-4">
+            <p className="text-muted-foreground">
+              {projectError ? "Failed to load project" : "Project not found"}
+            </p>
+            <Link href="/projects">
+              <Button variant="outline">Back to Projects</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-7xl">
@@ -356,12 +432,15 @@ export default function ProjectDetails() {
         </Link>
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-4xl font-bold">{mockProject.title}</h1>
-            <Badge variant="default">{mockProject.category}</Badge>
-            <Badge variant="outline" className="capitalize">{mockProject.status}</Badge>
+            <h1 className="text-4xl font-bold">{project.title}</h1>
+            <Badge variant="default">{project.type}</Badge>
+            {project.customCategory && (
+              <Badge variant="secondary">{project.customCategory}</Badge>
+            )}
+            <Badge variant="outline" className="capitalize">{project.status || "active"}</Badge>
           </div>
           <p className="text-muted-foreground mt-1">
-            Created on {new Date(mockProject.createdAt).toLocaleDateString()}
+            Created on {project.createdAt ? (project.createdAt instanceof Date ? project.createdAt : new Date(project.createdAt)).toLocaleDateString() : 'N/A'}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -425,7 +504,7 @@ export default function ProjectDetails() {
             </div>
             <Progress value={impactScore} className="h-3 mb-2" />
             <p className="text-sm text-muted-foreground">
-              Calculated from {mockMetrics.length} normalized metrics across {groupedMetrics.length} categories
+              Calculated from {metrics.length} normalized metrics across {groupedMetrics.length} categories
             </p>
           </CardContent>
         </Card>
@@ -437,17 +516,17 @@ export default function ProjectDetails() {
           <CardContent className="space-y-3">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Estimated Cost</span>
-              <span className="font-semibold">${mockProject.estimatedCost.toLocaleString()}</span>
+              <span className="font-semibold">${Number(project.estimatedCost).toLocaleString()}</span>
             </div>
             <Separator />
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Expected ROI</span>
-              <span className="font-semibold">{mockProject.roi}%</span>
+              <span className="font-semibold">{Number(project.roi)}%</span>
             </div>
             <Separator />
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Total Metrics</span>
-              <span className="font-semibold">{mockMetrics.length}</span>
+              <span className="font-semibold">{metrics.length}</span>
             </div>
             <Separator />
             <div className="flex justify-between text-sm">
@@ -581,7 +660,7 @@ export default function ProjectDetails() {
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground leading-relaxed">
-                {mockProject.description}
+                {project.description}
               </p>
             </CardContent>
           </Card>
@@ -594,31 +673,10 @@ export default function ProjectDetails() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {mockProject.uploadedFiles.map((file, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between p-4 rounded-lg border hover-elevate"
-                  data-testid={`file-${idx}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <FileText className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">{file.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {file.size} • Uploaded {file.uploadedAt}
-                      </p>
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm" data-testid={`button-download-${idx}`}>
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-              {mockProject.uploadedFiles.length === 0 && (
-                <p className="text-center text-muted-foreground py-8">
-                  No files uploaded
-                </p>
-              )}
+              {/* TODO: Implement file upload functionality */}
+              <p className="text-center text-muted-foreground py-8">
+                No files uploaded
+              </p>
             </CardContent>
           </Card>
 
@@ -691,7 +749,7 @@ export default function ProjectDetails() {
         open={isCreateSurveyDialogOpen}
         onOpenChange={setIsCreateSurveyDialogOpen}
         projectId={projectId}
-        projectCategory={mockProject.category}
+        projectCategory={project.type}
         onSubmit={handleCreateSurvey}
       />
     </div>

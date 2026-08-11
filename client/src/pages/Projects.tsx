@@ -31,10 +31,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Search, RefreshCw, Loader2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, getQueryFn, authFetch } from "@/lib/queryClient";
 
 export default function Projects() {
   const { toast } = useToast();
@@ -56,14 +66,14 @@ export default function Projects() {
   const [isClassifying, setIsClassifying] = useState(false);
   const [detectedCategory, setDetectedCategory] = useState<string | null>(null);
   const [classificationConfidence, setClassificationConfidence] = useState<number>(0);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-  // Type guard for user
-  const typedUser = user as { id: string; email: string; name: string } | null;
-
-  // Fetch projects from API
+  // The server scopes projects to the caller's token; no userId parameter.
   const { data: projects = [], isLoading: isLoadingProjects, error: projectsError } = useQuery<Project[]>({
-    queryKey: ['/api/projects', { userId: typedUser?.id }],
-    enabled: !!typedUser,
+    queryKey: ['/api/projects'],
+    queryFn: getQueryFn({ on401: "throw" }),
+    enabled: !!user,
   });
 
   // Show error toast if projects fail to load (only once)
@@ -105,12 +115,12 @@ export default function Projects() {
           complete: (results) => {
             if (results.data && results.data.length > 1) {
               const rows = results.data as any[][];
-              
+
               // First row = headers to find value/unit columns
               const headerRow = rows[0];
               let valueColIndex = -1;
               let unitColIndex = -1;
-              
+
               // Detect columns by keywords (case-insensitive)
               headerRow.forEach((header: any, index: number) => {
                 const headerStr = String(header || "").toLowerCase();
@@ -121,26 +131,26 @@ export default function Projects() {
                   unitColIndex = index;
                 }
               });
-              
+
               // Extract metrics from remaining rows (first column = metric name)
               for (let i = 1; i < rows.length; i++) {
                 const row = rows[i];
                 if (!Array.isArray(row) || row.length === 0) continue;
-                
+
                 const metricName = row[0];
                 if (!metricName || String(metricName).trim() === "") continue;
-                
+
                 // Build value string
                 let valueStr = "";
                 if (valueColIndex >= 0 && row[valueColIndex]) {
                   valueStr = String(row[valueColIndex]);
                 }
-                
+
                 if (unitColIndex >= 0 && row[unitColIndex]) {
                   const unit = String(row[unitColIndex]);
                   valueStr = valueStr ? `${valueStr} ${unit}` : unit;
                 }
-                
+
                 if (valueStr.trim()) {
                   extractedMetrics.push({
                     metricName: String(metricName),
@@ -157,7 +167,7 @@ export default function Projects() {
             resolve([]); // Return empty array on error instead of rejecting
           }
         });
-      } 
+      }
       // For Excel files - Read vertically (first column = metric names)
       else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
         const reader = new FileReader();
@@ -165,17 +175,17 @@ export default function Projects() {
           try {
             const base64 = e.target?.result as string;
             const base64Data = base64.split(",")[1];
-            
-            const response = await fetch("/api/parse-excel", {
+
+            const response = await authFetch("/api/parse-excel", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ fileData: base64Data }),
             });
-            
+
             if (response.ok) {
               const { metrics } = await response.json();
               const extractedMetrics: any[] = [];
-              
+
               if (Array.isArray(metrics)) {
                 metrics.forEach((metric: { name: string; value: string }) => {
                   extractedMetrics.push({
@@ -227,22 +237,22 @@ export default function Projects() {
       let allCustomMetrics = [...userMetrics];
       let fileMetrics: any[] = [];
       let fileText: string | undefined;
-      
+
       if (data.uploadedFile) {
         fileMetrics = await extractMetricsFromFile(data.uploadedFile);
-        
+
         // Extract full text for OpenAI classification from Excel files
         const fileName = data.uploadedFile.name.toLowerCase();
         const reader = new FileReader();
-        
+
         const extractFullText = new Promise<string>((resolve) => {
           reader.onload = async (e) => {
             try {
               const base64 = e.target?.result as string;
               const base64Data = base64.split(",")[1];
-              
+
               if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
-                const response = await fetch("/api/parse-excel", {
+                const response = await authFetch("/api/parse-excel", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ fileData: base64Data }),
@@ -262,9 +272,9 @@ export default function Projects() {
           };
           reader.readAsDataURL(data.uploadedFile);
         });
-        
+
         fileText = await extractFullText;
-        
+
         allCustomMetrics = [
           ...allCustomMetrics,
           ...fileMetrics.map((m) => ({ ...m, source: "file" as const })),
@@ -274,7 +284,7 @@ export default function Projects() {
       setPendingCustomMetrics(allCustomMetrics);
 
       // Call classification API
-      const classificationResponse = await fetch("/api/classify-project", {
+      const classificationResponse = await authFetch("/api/classify-project", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -306,7 +316,7 @@ export default function Projects() {
       setClassificationConfidence(0);
     } finally {
       setIsClassifying(false);
-      
+
       // Show unified metrics dialog with both AI and custom metrics
       setTimeout(() => {
         setIsRecommendedMetricsDialogOpen(true);
@@ -331,9 +341,10 @@ export default function Projects() {
     }
 
     // Combine AI metrics and custom metrics into unified list
+    // For AI metrics, use defaultValue as the actual value, and unit as the unit
     const aiAsMetrics: MetricItem[] = selectedAIMetrics.map((m) => ({
       metricName: m.metricName,
-      value: m.value,
+      value: `${m.defaultValue} ${m.unit}`, // Combine default value and unit
       source: "user" as const,
     }));
 
@@ -606,40 +617,54 @@ export default function Projects() {
   // Mutation for creating project
   const createProjectMutation = useMutation({
     mutationFn: async () => {
-      if (!typedUser) {
+      if (!user) {
         throw new Error("User not authenticated");
       }
-      
+
       const projectPayload = {
         ...pendingProjectData,
-        userId: typedUser.id,
+        // userId comes from the token, not the payload.
         type: pendingProjectData?.type || suggestedCategory,
         customCategory: pendingProjectData?.customCategory,
         estimatedCost: String(pendingProjectData?.estimatedCost || 0),
         roi: String(pendingProjectData?.roi || 0),
       };
-      
+
       console.log("Creating project:", projectPayload);
-      
+
       const response = await apiRequest("POST", "/api/projects", projectPayload);
       const project = await response.json();
       const projectId = project.id;
-      
+
       // Create metrics
       if (pendingMetrics.length > 0) {
         await Promise.all(
-          pendingMetrics.map((metric) =>
-            apiRequest("POST", `/api/projects/${projectId}/metrics`, metric)
-          )
+          pendingMetrics.map((metric) => {
+            // Parse value and unit from the metric value string
+            // Format: "75 %" or "5000 kg" etc.
+            const valueStr = metric.value || "";
+            const parts = valueStr.trim().split(/\s+/);
+            const numericValue = parts[0] || "";
+            const unit = parts.slice(1).join(" ") || null;
+
+            return apiRequest("POST", `/api/projects/${projectId}/metrics`, {
+              metricName: metric.metricName,
+              value: numericValue, // Store just the numeric value
+              unit: unit, // Store the unit separately
+              source: metric.source || "user",
+            });
+          })
         );
       }
-      
+
       return { projectId, projectTitle: projectPayload.title, metricsCount: pendingMetrics.length };
     },
     onSuccess: async ({ projectId, projectTitle, metricsCount }) => {
-      // Invalidate projects cache
-      await queryClient.invalidateQueries({ queryKey: ['/api/projects', { userId: typedUser?.id }] });
-      
+      // Invalidate projects cache and related queries.
+      await queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      // Also invalidate dashboard stats and related queries to ensure Dashboard updates
+      await queryClient.invalidateQueries({ queryKey: ['/api/dashboard'] });
+
       toast({
         title: "Project Created Successfully",
         description: `Your project has been created with ${metricsCount} metric${metricsCount !== 1 ? 's' : ''}.`,
@@ -665,7 +690,7 @@ export default function Projects() {
   });
 
   const handleFinalizeProject = () => {
-    if (!typedUser) {
+    if (!user) {
       toast({
         title: "Error",
         description: "User not authenticated. Please refresh the page.",
@@ -674,6 +699,49 @@ export default function Projects() {
       return;
     }
     createProjectMutation.mutate();
+  };
+
+  // Delete project mutation
+  const deleteProjectMutation = useMutation({
+    mutationFn: async (projectId: string) => {
+      const response = await apiRequest("DELETE", `/api/projects/${projectId}`);
+      return response;
+    },
+    onSuccess: async () => {
+      // Invalidate projects cache and related queries
+      await queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/dashboard'] });
+
+      toast({
+        title: "Project Deleted",
+        description: "The project has been deleted successfully.",
+      });
+
+      setIsDeleteDialogOpen(false);
+      setProjectToDelete(null);
+    },
+    onError: (error: any) => {
+      console.error("Failed to delete project:", error);
+      toast({
+        title: "Error Deleting Project",
+        description: error.message || "Failed to delete project. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteClick = (projectId: string) => {
+    const project = projects.find(p => p.id === projectId);
+    if (project) {
+      setProjectToDelete(project);
+      setIsDeleteDialogOpen(true);
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    if (projectToDelete) {
+      deleteProjectMutation.mutate(projectToDelete.id);
+    }
   };
 
   return (
@@ -700,9 +768,9 @@ export default function Projects() {
               <DialogHeader>
                 <DialogTitle>Create New Project</DialogTitle>
               </DialogHeader>
-              <ProjectForm 
+              <ProjectForm
                 key={isCreateDialogOpen ? 'create-form' : 'hidden'}
-                onSubmit={handleProjectSubmit} 
+                onSubmit={handleProjectSubmit}
                 initialData={pendingProjectData}
               />
             </DialogContent>
@@ -773,7 +841,11 @@ export default function Projects() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredProjects.map((project) => (
-            <ProjectCard key={project.id} project={project} />
+            <ProjectCard
+              key={project.id}
+              project={project}
+              onDelete={handleDeleteClick}
+            />
           ))}
         </div>
       )}
@@ -817,6 +889,38 @@ export default function Projects() {
         onCancel={handleCancelProject}
         onFinalize={handleFinalizeProject}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Project</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{projectToDelete?.title}"? This action cannot be undone and will permanently delete the project and all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteProjectMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={deleteProjectMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete"
+            >
+              {deleteProjectMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

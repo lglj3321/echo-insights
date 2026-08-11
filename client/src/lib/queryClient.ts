@@ -7,17 +7,53 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+/**
+ * fetch with the bearer token attached when one is present.
+ *
+ * Use this instead of calling fetch directly: cookies alone are not enough,
+ * because the API authenticates with a JWT in the Authorization header.
+ * Requests on the anonymous survey path work through it too — without a token
+ * it is a plain fetch.
+ */
+export async function authFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const token = localStorage.getItem("token");
+  const headers = new Headers(init.headers);
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return fetch(url, { ...init, headers, credentials: "include" });
+}
+
 export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const token = localStorage.getItem("token");
+
+  const headers: HeadersInit = {};
+  if (data) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
+
+  // An expired or revoked token: drop it and send the user to sign in.
+  if (res.status === 401) {
+    localStorage.removeItem("token");
+    if (window.location.pathname !== "/login") {
+      window.location.href = "/login";
+    }
+  }
 
   await throwIfResNotOk(res);
   return res;
@@ -31,7 +67,7 @@ export const getQueryFn: <T>(options: {
   async ({ queryKey }) => {
     // Build URL from queryKey
     let url = queryKey[0] as string;
-    
+
     // If queryKey[1] is an object, treat it as query parameters
     if (queryKey.length > 1 && typeof queryKey[1] === 'object' && queryKey[1] !== null) {
       const params = new URLSearchParams();
@@ -49,9 +85,28 @@ export const getQueryFn: <T>(options: {
       url = queryKey.join("/") as string;
     }
 
+    const token = localStorage.getItem("token");
+
+    const headers: HeadersInit = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
     const res = await fetch(url, {
+      headers,
       credentials: "include",
     });
+
+    // An expired or revoked token: drop it.
+    if (res.status === 401) {
+      localStorage.removeItem("token");
+      if (unauthorizedBehavior === "returnNull") {
+        return null;
+      }
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+    }
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
       return null;

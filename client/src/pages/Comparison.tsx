@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +12,13 @@ import {
   CheckCircle2,
   Award,
   BarChart3,
+  Loader2,
 } from "lucide-react";
+import { getQueryFn, authFetch } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
+import { getProjectImpactScore } from "@/lib/impactScore";
+import type { Project as ProjectType } from "@/components/ProjectCard";
+import type { ProjectMetric } from "@shared/schema";
 
 interface Project {
   id: string;
@@ -22,89 +29,171 @@ interface Project {
 }
 
 export default function Comparison() {
+  const { user } = useAuth();
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set());
 
-  // Mock project data
-  const availableProjects: Project[] = [
-    {
-      id: "1",
-      title: "100% Recycled Packaging Initiative",
-      category: "Packaging",
-      impactScore: 82,
-      metrics: [
-        { name: "CO₂ Emissions Reduced", value: "3.2 Tons/Quarter", normalizedScore: 85 },
-        { name: "Recycled Material Usage", value: "92%", normalizedScore: 92 },
-        { name: "Plastic Elimination", value: "1,200 kg/year", normalizedScore: 78 },
-        { name: "Water Conservation", value: "1,250 Gallons/Month", normalizedScore: 65 },
-        { name: "Cost Savings", value: "$12,500/year", normalizedScore: 55 },
-      ],
+  // Fetch projects from API
+  const { data: projects = [], isLoading: isLoadingProjects } = useQuery<ProjectType[]>({
+    queryKey: ['/api/projects'],
+    queryFn: getQueryFn({ on401: "throw" }),
+    enabled: !!user,
+  });
+
+  // Fetch metrics for all projects
+  const { data: projectsWithMetrics } = useQuery({
+    queryKey: ['/api/projects', 'metrics'],
+    queryFn: async () => {
+      const projectsWithMetricsData = await Promise.all(
+        projects.map(async (project) => {
+          try {
+            const response = await authFetch(`/api/projects/${project.id}/metrics`, {
+              credentials: "include",
+            });
+            if (response.ok) {
+              const metrics: ProjectMetric[] = await response.json();
+              return {
+                projectId: project.id,
+                metrics,
+              };
+            }
+          } catch (error) {
+            // Skip if metrics not available
+          }
+          return {
+            projectId: project.id,
+            metrics: [],
+          };
+        })
+      );
+      return projectsWithMetricsData;
     },
-    {
-      id: "2",
-      title: "Solar Panel Installation",
-      category: "Energy",
-      impactScore: 88,
-      metrics: [
-        { name: "CO₂ Emissions Reduced", value: "5.8 Tons/Quarter", normalizedScore: 95 },
-        { name: "Energy Savings", value: "850 kWh/Month", normalizedScore: 88 },
-        { name: "Renewable Energy Usage", value: "65%", normalizedScore: 82 },
-        { name: "Cost Savings", value: "$18,000/year", normalizedScore: 72 },
-        { name: "ROI Timeline", value: "12 months", normalizedScore: 90 },
-      ],
-    },
-    {
-      id: "3",
-      title: "Local Sourcing Program",
-      category: "Sourcing",
-      impactScore: 75,
-      metrics: [
-        { name: "Local Supplier Percentage", value: "78%", normalizedScore: 78 },
-        { name: "Supply Chain Emissions", value: "2.1 tons CO₂/year", normalizedScore: 68 },
-        { name: "Transport Distance Reduction", value: "320 miles/shipment", normalizedScore: 75 },
-        { name: "Cost Savings", value: "$9,200/year", normalizedScore: 48 },
-        { name: "Community Impact", value: "High", normalizedScore: 85 },
-      ],
-    },
-    {
-      id: "4",
-      title: "Zero Waste Manufacturing",
-      category: "Waste",
-      impactScore: 91,
-      metrics: [
-        { name: "Waste Diversion Rate", value: "94%", normalizedScore: 94 },
-        { name: "Recycling Rate", value: "87%", normalizedScore: 87 },
-        { name: "Composting Volume", value: "4.5 tons/year", normalizedScore: 82 },
-        { name: "Cost Savings", value: "$22,000/year", normalizedScore: 88 },
-        { name: "Plastic Elimination", value: "2,800 kg/year", normalizedScore: 95 },
-      ],
-    },
-    {
-      id: "5",
-      title: "Zero Waste Initiative",
-      category: "Waste",
-      impactScore: 78,
-      metrics: [
-        { name: "Waste Diversion Rate", value: "85%", normalizedScore: 85 },
-        { name: "Recycling Rate", value: "72%", normalizedScore: 72 },
-        { name: "CO₂ Emissions Reduced", value: "2.1 Tons/Quarter", normalizedScore: 70 },
-        { name: "Cost Savings", value: "$15,000/year", normalizedScore: 60 },
-        { name: "Composting Volume", value: "3.2 tons/year", normalizedScore: 65 },
-      ],
-    },
-    {
-      id: "6",
-      title: "Electric Fleet Transition",
-      category: "Logistics",
-      impactScore: 88,
-      metrics: [
-        { name: "CO₂ Emissions Reduced", value: "5.8 Tons/Quarter", normalizedScore: 95 },
-        { name: "Fuel Savings", value: "4,200 gallons/year", normalizedScore: 88 },
-        { name: "Electric Vehicle Adoption", value: "75%", normalizedScore: 85 },
-        { name: "Cost Savings", value: "$19,500/year", normalizedScore: 78 },
-        { name: "Maintenance Reduction", value: "35%", normalizedScore: 82 },
-      ],
-    },
-  ];
+    enabled: !!user && projects.length > 0,
+  });
+
+  // Format projects with metrics and calculate impact scores
+  const availableProjects: Project[] = useMemo(() => {
+    return projects.map(project => {
+      const projectMetrics = projectsWithMetrics?.find(p => p.projectId === project.id)?.metrics || [];
+      
+      // Use server-calculated impactScore for consistency across all pages
+      // This ensures the same score appears in ProjectDetails, Comparison, Dashboard, etc.
+      const impactScore = getProjectImpactScore(project, projectMetrics);
+
+      // Format metrics for comparison
+      const formattedMetrics = projectMetrics.map(metric => {
+        // Use normalizedScore if available, otherwise calculate it
+        let normalizedScore = 0;
+        
+        if (metric.normalizedScore) {
+          normalizedScore = Number(metric.normalizedScore);
+        } else {
+          const numValue = parseFloat(metric.value || "0");
+          if (!isNaN(numValue)) {
+            const name = metric.metricName.toLowerCase();
+            const unit = (metric.unit || "").toLowerCase();
+            
+            // CO2/Carbon emissions
+            if (name.includes("co2") || name.includes("carbon") || name.includes("emission")) {
+              normalizedScore = Math.min(100, Math.max(0, Math.round(numValue * 10)));
+            }
+            // Percentage
+            else if (unit.includes("%") || metric.value.includes("%")) {
+              normalizedScore = Math.min(100, Math.max(0, Math.round(numValue)));
+            }
+            // Water/Energy savings
+            else if (name.includes("water") || name.includes("energy") || name.includes("saving")) {
+              normalizedScore = Math.min(100, Math.round(numValue / 10));
+            }
+            // Cost savings
+            else if (name.includes("cost") || name.includes("saving")) {
+              normalizedScore = Math.min(100, Math.round(numValue / 100));
+            }
+            // Default
+            else {
+              normalizedScore = Math.min(100, Math.max(0, Math.round(numValue * 5)));
+            }
+          }
+        }
+
+        return {
+          name: metric.metricName,
+          value: `${metric.value}${metric.unit ? ` ${metric.unit}` : ""}`,
+          normalizedScore: Math.round(normalizedScore),
+        };
+      });
+
+      // Add default metrics from project data if no metrics exist
+      if (formattedMetrics.length === 0) {
+        if (project.co2Saved) {
+          formattedMetrics.push({
+            name: "CO₂ Emissions Reduced",
+            value: `${project.co2Saved} tons`,
+            normalizedScore: Math.min(100, Math.round(Number(project.co2Saved) * 10)),
+          });
+        }
+        if (project.roi) {
+          formattedMetrics.push({
+            name: "ROI",
+            value: `${project.roi}%`,
+            normalizedScore: Math.min(100, Math.round(Number(project.roi) * 4)),
+          });
+        }
+        if (project.waterSaved) {
+          formattedMetrics.push({
+            name: "Water Conservation",
+            value: `${project.waterSaved} liters`,
+            normalizedScore: Math.min(100, Math.round(Number(project.waterSaved) / 10)),
+          });
+        }
+        formattedMetrics.push({
+          name: "Estimated Cost",
+          value: `$${Number(project.estimatedCost).toLocaleString()}`,
+          normalizedScore: Math.min(100, Math.max(0, 100 - Math.round(Number(project.estimatedCost) / 1000))),
+        });
+      }
+
+      return {
+        id: project.id,
+        title: project.title,
+        category: project.customCategory || project.type || "Other",
+        impactScore,
+        metrics: formattedMetrics,
+      };
+    });
+  }, [projects, projectsWithMetrics]);
+
+  if (isLoadingProjects) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Loading projects...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (availableProjects.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-4xl font-bold">Project Comparison</h1>
+          <p className="text-muted-foreground mt-1">
+            Compare up to 3 projects side-by-side to analyze similarities and metrics
+          </p>
+        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <GitCompare className="h-16 w-16 text-muted-foreground opacity-50 mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No Projects Available</h3>
+            <p className="text-muted-foreground text-center max-w-md">
+              Create some projects first to compare them
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const toggleProject = (projectId: string) => {
     const newSelected = new Set(selectedProjects);

@@ -1,5 +1,5 @@
-import { 
-  type User, 
+import {
+  type User,
   type InsertUser,
   type Project,
   type InsertProject,
@@ -10,13 +10,15 @@ import {
   type QRCodeScan,
   type SurveyResponse,
   type InsertSurveyResponse,
+  type SurveyQuestion,
+  type InsertSurveyQuestion,
   type Category,
   type InsertCategory,
   type CategoryMetric,
   type InsertCategoryMetric,
   type ProjectMetric,
   type InsertProjectMetric,
-} from "@shared/schema";
+} from "../../shared/schema.js";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -25,46 +27,53 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
-  
+
   // Projects
   getProjects(userId: string): Promise<Project[]>;
   getProject(id: string): Promise<Project | undefined>;
   createProject(project: InsertProject): Promise<Project>;
   updateProject(id: string, updates: Partial<Project>): Promise<Project | undefined>;
   deleteProject(id: string): Promise<boolean>;
-  
+
   // Goals
   getGoals(userId: string): Promise<Goal[]>;
   getGoal(id: string): Promise<Goal | undefined>;
   createGoal(goal: InsertGoal): Promise<Goal>;
   updateGoal(id: string, updates: Partial<Goal>): Promise<Goal | undefined>;
   deleteGoal(id: string): Promise<boolean>;
-  
+
   // Team Members
   getTeamMembers(userId: string): Promise<TeamMember[]>;
   createTeamMember(member: InsertTeamMember): Promise<TeamMember>;
   updateTeamMember(id: string, updates: Partial<TeamMember>): Promise<TeamMember | undefined>;
   deleteTeamMember(id: string): Promise<boolean>;
-  
+
   // QR Code Scans
   recordQRScan(projectId: string): Promise<QRCodeScan>;
   getQRScans(projectId: string): Promise<number>;
-  
+
+  // Survey Questions
+  getSurveyQuestions(projectId: string): Promise<SurveyQuestion[]>;
+  getSurveyQuestion(id: string): Promise<SurveyQuestion | undefined>;
+  createSurveyQuestion(question: InsertSurveyQuestion): Promise<SurveyQuestion>;
+  updateSurveyQuestion(id: string, updates: Partial<SurveyQuestion>): Promise<SurveyQuestion | undefined>;
+  deleteSurveyQuestion(id: string): Promise<boolean>;
+
   // Survey Responses
   createSurveyResponse(response: InsertSurveyResponse): Promise<SurveyResponse>;
   getSurveyResponses(projectId: string): Promise<SurveyResponse[]>;
   getProjectFeedbackScore(projectId: string): Promise<{ score: number; count: number }>;
-  
+
   // Categories
   getCategories(): Promise<Category[]>;
   getCategory(id: string): Promise<Category | undefined>;
   createCategory(category: InsertCategory): Promise<Category>;
-  
+
   // Category Metrics
   getCategoryMetrics(categoryId: string): Promise<CategoryMetric[]>;
   getRecommendedMetrics(categoryId: string): Promise<CategoryMetric[]>;
   createCategoryMetric(metric: InsertCategoryMetric): Promise<CategoryMetric>;
-  
+
   // Project Metrics
   getProjectMetrics(projectId: string): Promise<ProjectMetric[]>;
   createProjectMetric(metric: InsertProjectMetric): Promise<ProjectMetric>;
@@ -78,6 +87,7 @@ export class MemStorage implements IStorage {
   private goals: Map<string, Goal>;
   private teamMembers: Map<string, TeamMember>;
   private qrScans: Map<string, QRCodeScan[]>;
+  private surveyQuestions: Map<string, SurveyQuestion>;
   private surveyResponses: Map<string, SurveyResponse[]>;
   private categories: Map<string, Category>;
   private categoryMetrics: Map<string, CategoryMetric>;
@@ -89,6 +99,7 @@ export class MemStorage implements IStorage {
     this.goals = new Map();
     this.teamMembers = new Map();
     this.qrScans = new Map();
+    this.surveyQuestions = new Map();
     this.surveyResponses = new Map();
     this.categories = new Map();
     this.categoryMetrics = new Map();
@@ -108,8 +119,8 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { 
-      ...insertUser, 
+    const user: User = {
+      ...insertUser,
       id,
       fullName: null,
       email: null,
@@ -154,6 +165,8 @@ export class MemStorage implements IStorage {
       customCategory: project.customCategory ?? null,
       waterSaved: project.waterSaved ?? null,
       actualCost: project.actualCost ?? null,
+      co2Saved: project.co2Saved ?? null,
+      impactScore: project.impactScore ?? null,
       status: project.status ?? "active",
       assignedTo: project.assignedTo ?? null,
       startDate: project.startDate ?? null,
@@ -174,6 +187,45 @@ export class MemStorage implements IStorage {
   }
 
   async deleteProject(id: string): Promise<boolean> {
+    // Delete all related data first
+    // 1. Delete survey responses (stored as Map<projectId, Array>)
+    const responses = this.surveyResponses.get(id) || [];
+    responses.forEach(r => {
+      // Find and remove from all project response arrays
+      for (const [projectId, responseArray] of this.surveyResponses.entries()) {
+        const index = responseArray.findIndex(resp => resp.id === r.id);
+        if (index !== -1) {
+          responseArray.splice(index, 1);
+        }
+      }
+    });
+    this.surveyResponses.delete(id);
+
+    // 2. Delete survey questions
+    const questionsToDelete = Array.from(this.surveyQuestions.values())
+      .filter(q => q.projectId === id);
+    questionsToDelete.forEach(q => this.surveyQuestions.delete(q.id));
+
+    // 3. Delete QR code scans (stored as Map<projectId, Array>)
+    this.qrScans.delete(id);
+
+    // 4. Delete project metrics
+    // projectMetrics is Map<projectId, ProjectMetric[]>, so we need to flatten the arrays
+    const allMetrics = Array.from(this.projectMetrics.values()).flat();
+    const metricsToDelete = allMetrics.filter(m => m.projectId === id);
+    metricsToDelete.forEach(m => {
+      // Find and remove from the correct project's metrics array
+      const projectMetrics = this.projectMetrics.get(m.projectId);
+      if (projectMetrics) {
+        const index = projectMetrics.findIndex(metric => metric.id === m.id);
+        if (index !== -1) {
+          projectMetrics.splice(index, 1);
+          this.projectMetrics.set(m.projectId, projectMetrics);
+        }
+      }
+    });
+
+    // Finally, delete the project itself
     return this.projects.delete(id);
   }
 
@@ -260,15 +312,63 @@ export class MemStorage implements IStorage {
     return (this.qrScans.get(projectId) || []).length;
   }
 
+  // Survey Question methods
+  async getSurveyQuestions(projectId: string): Promise<SurveyQuestion[]> {
+    return Array.from(this.surveyQuestions.values())
+      .filter(q => q.projectId === projectId)
+      .sort((a, b) => a.orderIndex - b.orderIndex);
+  }
+
+  async getSurveyQuestion(id: string): Promise<SurveyQuestion | undefined> {
+    return this.surveyQuestions.get(id);
+  }
+
+  async createSurveyQuestion(insertQuestion: InsertSurveyQuestion): Promise<SurveyQuestion> {
+    const id = randomUUID();
+    const question: SurveyQuestion = {
+      ...insertQuestion,
+      id,
+      options: insertQuestion.options ?? null,
+      isTemplate: insertQuestion.isTemplate ?? false,
+      createdAt: new Date(),
+    };
+    this.surveyQuestions.set(id, question);
+    return question;
+  }
+
+  async updateSurveyQuestion(id: string, updates: Partial<SurveyQuestion>): Promise<SurveyQuestion | undefined> {
+    const question = this.surveyQuestions.get(id);
+    if (!question) return undefined;
+    const updated = { ...question, ...updates };
+    this.surveyQuestions.set(id, updated);
+    return updated;
+  }
+
+  async deleteSurveyQuestion(id: string): Promise<boolean> {
+    return this.surveyQuestions.delete(id);
+  }
+
   // Survey Response methods
   async createSurveyResponse(response: InsertSurveyResponse): Promise<SurveyResponse> {
     const id = randomUUID();
+
+    // Support custom createdAt from metadata (for testing purposes)
+    let createdAt = new Date();
+    if (response.metadata && typeof response.metadata === 'object' && 'createdAt' in response.metadata) {
+      const customDate = response.metadata.createdAt;
+      if (typeof customDate === 'string') {
+        createdAt = new Date(customDate);
+      } else if (customDate instanceof Date) {
+        createdAt = customDate;
+      }
+    }
+
     const newResponse: SurveyResponse = {
       ...response,
       id,
       numericValue: response.numericValue ?? null,
       metadata: response.metadata ?? null,
-      createdAt: new Date(),
+      createdAt,
     };
     const responses = this.surveyResponses.get(response.projectId) || [];
     responses.push(newResponse);
@@ -283,14 +383,48 @@ export class MemStorage implements IStorage {
   async getProjectFeedbackScore(projectId: string): Promise<{ score: number; count: number }> {
     const responses = this.surveyResponses.get(projectId) || [];
     if (responses.length === 0) return { score: 0, count: 0 };
-    
-    const numericResponses = responses.filter(r => r.numericValue !== null);
-    if (numericResponses.length === 0) return { score: 0, count: 0 };
-    
-    const sum = numericResponses.reduce((acc, r) => acc + parseFloat(r.numericValue as string), 0);
-    const avg = sum / numericResponses.length;
-    
-    return { score: avg, count: numericResponses.length };
+
+    // Count unique surveys (group by sessionId in metadata)
+    const sessionIds = new Set<string>();
+    responses.forEach(r => {
+      if (r.metadata && typeof r.metadata === 'object' && 'sessionId' in r.metadata) {
+        const sessionId = (r.metadata as any).sessionId;
+        if (typeof sessionId === 'string') {
+          sessionIds.add(sessionId);
+        }
+      }
+    });
+
+    // If no sessionIds found, group by time windows (5 minutes)
+    let uniqueSurveyCount = sessionIds.size;
+    if (uniqueSurveyCount === 0) {
+      const timeGroups = new Map<number, Set<string>>();
+      responses.forEach(r => {
+        if (r.createdAt) {
+          const time = r.createdAt instanceof Date ? r.createdAt.getTime() : new Date(r.createdAt).getTime();
+          const window = Math.floor(time / (5 * 60 * 1000)); // 5-minute windows
+          if (!timeGroups.has(window)) {
+            timeGroups.set(window, new Set());
+          }
+          timeGroups.get(window)!.add(r.questionId);
+        }
+      });
+      uniqueSurveyCount = timeGroups.size;
+    }
+
+    // Calculate average score from numeric responses
+    const numericResponses = responses.filter(r => r.numericValue !== null && r.numericValue !== undefined);
+    const avg = numericResponses.length > 0
+      ? numericResponses.reduce((acc, r) => {
+          const value = typeof r.numericValue === 'string' ? parseFloat(r.numericValue) : Number(r.numericValue);
+          return acc + (isNaN(value) ? 0 : value);
+        }, 0) / numericResponses.length
+      : 0;
+
+    return {
+      score: Math.round(avg * 10) / 10,
+      count: uniqueSurveyCount // Return count of unique surveys, not individual responses
+    };
   }
 
   // Category methods
@@ -393,29 +527,38 @@ export class MemStorage implements IStorage {
   }
 }
 
-import { db } from "./db";
-import * as schema from "@shared/schema";
-import { eq, and, sql as drizzleSql } from "drizzle-orm";
+import { db } from "./db.js";
+import * as schema from "../../shared/schema.js";
+import { eq, and, sql as drizzleSql, asc } from "drizzle-orm";
 
 export class DatabaseStorage implements IStorage {
+  private dbInstance: NonNullable<typeof db>;
+
+  constructor() {
+    if (!db) {
+      throw new Error("Database not initialized. DATABASE_URL must be set.");
+    }
+    this.dbInstance = db;
+  }
+
   // Users
   async getUser(id: string): Promise<User | undefined> {
-    const result = await db.select().from(schema.users).where(eq(schema.users.id, id)).limit(1);
+    const result = await this.dbInstance.select().from(schema.users).where(eq(schema.users.id, id)).limit(1);
     return result[0];
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const result = await db.select().from(schema.users).where(eq(schema.users.username, username)).limit(1);
+    const result = await this.dbInstance.select().from(schema.users).where(eq(schema.users.username, username)).limit(1);
     return result[0];
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const result = await db.insert(schema.users).values(insertUser).returning();
+    const result = await this.dbInstance.insert(schema.users).values(insertUser).returning();
     return result[0];
   }
 
   async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
-    const result = await db.update(schema.users)
+    const result = await this.dbInstance.update(schema.users)
       .set(updates)
       .where(eq(schema.users.id, id))
       .returning();
@@ -424,21 +567,21 @@ export class DatabaseStorage implements IStorage {
 
   // Projects
   async getProjects(userId: string): Promise<Project[]> {
-    return await db.select().from(schema.projects).where(eq(schema.projects.userId, userId));
+    return await this.dbInstance.select().from(schema.projects).where(eq(schema.projects.userId, userId));
   }
 
   async getProject(id: string): Promise<Project | undefined> {
-    const result = await db.select().from(schema.projects).where(eq(schema.projects.id, id)).limit(1);
+    const result = await this.dbInstance.select().from(schema.projects).where(eq(schema.projects.id, id)).limit(1);
     return result[0];
   }
 
   async createProject(insertProject: InsertProject): Promise<Project> {
-    const result = await db.insert(schema.projects).values(insertProject).returning();
+    const result = await this.dbInstance.insert(schema.projects).values(insertProject).returning();
     return result[0];
   }
 
   async updateProject(id: string, updates: Partial<Project>): Promise<Project | undefined> {
-    const result = await db.update(schema.projects)
+    const result = await this.dbInstance.update(schema.projects)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(schema.projects.id, id))
       .returning();
@@ -446,27 +589,64 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteProject(id: string): Promise<boolean> {
-    const result = await db.delete(schema.projects).where(eq(schema.projects.id, id)).returning();
-    return result.length > 0;
+    try {
+      // Delete all related data first (in order of foreign key dependencies)
+      // 1. Delete survey responses (references survey_questions and projects)
+      await this.dbInstance.delete(schema.surveyResponses)
+        .where(eq(schema.surveyResponses.projectId, id));
+
+      // 2. Delete survey questions (references projects)
+      await this.dbInstance.delete(schema.surveyQuestions)
+        .where(eq(schema.surveyQuestions.projectId, id));
+
+      // 3. Delete QR code scans (references projects)
+      await this.dbInstance.delete(schema.qrCodeScans)
+        .where(eq(schema.qrCodeScans.projectId, id));
+
+      // 4. Delete project metrics (references projects)
+      await this.dbInstance.delete(schema.projectMetrics)
+        .where(eq(schema.projectMetrics.projectId, id));
+
+      // 5. Delete goals (references projects via userId, but we'll delete by projectId if there's a direct reference)
+      // Note: Goals are linked to userId, not projectId, so we don't delete them here
+
+      // 6. Delete team members (references userId, not projectId, so we don't delete them here)
+
+      // 7. Delete comments (if exists - check schema)
+      // Note: Comments table might not exist, so we'll skip if it doesn't
+
+      // 8. Delete budget allocations (if exists - check schema)
+      // Note: Budget allocations table might not exist, so we'll skip if it doesn't
+
+      // Finally, delete the project itself
+      const result = await this.dbInstance.delete(schema.projects)
+        .where(eq(schema.projects.id, id))
+        .returning();
+
+      return result.length > 0;
+    } catch (error) {
+      console.error("Error deleting project and related data:", error);
+      throw error;
+    }
   }
 
   // Goals
   async getGoals(userId: string): Promise<Goal[]> {
-    return await db.select().from(schema.goals).where(eq(schema.goals.userId, userId));
+    return await this.dbInstance.select().from(schema.goals).where(eq(schema.goals.userId, userId));
   }
 
   async getGoal(id: string): Promise<Goal | undefined> {
-    const result = await db.select().from(schema.goals).where(eq(schema.goals.id, id)).limit(1);
+    const result = await this.dbInstance.select().from(schema.goals).where(eq(schema.goals.id, id)).limit(1);
     return result[0];
   }
 
   async createGoal(insertGoal: InsertGoal): Promise<Goal> {
-    const result = await db.insert(schema.goals).values(insertGoal).returning();
+    const result = await this.dbInstance.insert(schema.goals).values(insertGoal).returning();
     return result[0];
   }
 
   async updateGoal(id: string, updates: Partial<Goal>): Promise<Goal | undefined> {
-    const result = await db.update(schema.goals)
+    const result = await this.dbInstance.update(schema.goals)
       .set(updates)
       .where(eq(schema.goals.id, id))
       .returning();
@@ -474,22 +654,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteGoal(id: string): Promise<boolean> {
-    const result = await db.delete(schema.goals).where(eq(schema.goals.id, id)).returning();
+    const result = await this.dbInstance.delete(schema.goals).where(eq(schema.goals.id, id)).returning();
     return result.length > 0;
   }
 
   // Team Members
   async getTeamMembers(userId: string): Promise<TeamMember[]> {
-    return await db.select().from(schema.teamMembers).where(eq(schema.teamMembers.userId, userId));
+    return await this.dbInstance.select().from(schema.teamMembers).where(eq(schema.teamMembers.userId, userId));
   }
 
   async createTeamMember(insertMember: InsertTeamMember): Promise<TeamMember> {
-    const result = await db.insert(schema.teamMembers).values(insertMember).returning();
+    const result = await this.dbInstance.insert(schema.teamMembers).values(insertMember).returning();
     return result[0];
   }
 
   async updateTeamMember(id: string, updates: Partial<TeamMember>): Promise<TeamMember | undefined> {
-    const result = await db.update(schema.teamMembers)
+    const result = await this.dbInstance.update(schema.teamMembers)
       .set(updates)
       .where(eq(schema.teamMembers.id, id))
       .returning();
@@ -497,69 +677,149 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteTeamMember(id: string): Promise<boolean> {
-    const result = await db.delete(schema.teamMembers).where(eq(schema.teamMembers.id, id)).returning();
+    const result = await this.dbInstance.delete(schema.teamMembers).where(eq(schema.teamMembers.id, id)).returning();
     return result.length > 0;
   }
 
   // QR Code Scans
   async recordQRScan(projectId: string): Promise<QRCodeScan> {
-    const result = await db.insert(schema.qrCodeScans).values({ projectId }).returning();
+    const result = await this.dbInstance.insert(schema.qrCodeScans).values({ projectId }).returning();
     return result[0];
   }
 
   async getQRScans(projectId: string): Promise<number> {
-    const result = await db.select({ count: drizzleSql<number>`count(*)::int` })
+    const result = await this.dbInstance.select({ count: drizzleSql<number>`count(*)::int` })
       .from(schema.qrCodeScans)
       .where(eq(schema.qrCodeScans.projectId, projectId));
     return result[0]?.count || 0;
   }
 
+  // Survey Questions
+  async getSurveyQuestions(projectId: string): Promise<SurveyQuestion[]> {
+    return await this.dbInstance.select()
+      .from(schema.surveyQuestions)
+      .where(eq(schema.surveyQuestions.projectId, projectId))
+      .orderBy(asc(schema.surveyQuestions.orderIndex));
+  }
+
+  async getSurveyQuestion(id: string): Promise<SurveyQuestion | undefined> {
+    const result = await this.dbInstance.select()
+      .from(schema.surveyQuestions)
+      .where(eq(schema.surveyQuestions.id, id))
+      .limit(1);
+    return result[0];
+  }
+
+  async createSurveyQuestion(insertQuestion: InsertSurveyQuestion): Promise<SurveyQuestion> {
+    const result = await this.dbInstance.insert(schema.surveyQuestions)
+      .values(insertQuestion)
+      .returning();
+    return result[0];
+  }
+
+  async updateSurveyQuestion(id: string, updates: Partial<SurveyQuestion>): Promise<SurveyQuestion | undefined> {
+    const result = await this.dbInstance.update(schema.surveyQuestions)
+      .set(updates)
+      .where(eq(schema.surveyQuestions.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteSurveyQuestion(id: string): Promise<boolean> {
+    const result = await this.dbInstance.delete(schema.surveyQuestions)
+      .where(eq(schema.surveyQuestions.id, id))
+      .returning();
+    return result.length > 0;
+  }
+
   // Survey Responses
   async createSurveyResponse(insertResponse: InsertSurveyResponse): Promise<SurveyResponse> {
-    const result = await db.insert(schema.surveyResponses).values(insertResponse).returning();
+    const result = await this.dbInstance.insert(schema.surveyResponses).values(insertResponse).returning();
     return result[0];
   }
 
   async getSurveyResponses(projectId: string): Promise<SurveyResponse[]> {
-    return await db.select().from(schema.surveyResponses).where(eq(schema.surveyResponses.projectId, projectId));
+    return await this.dbInstance.select().from(schema.surveyResponses).where(eq(schema.surveyResponses.projectId, projectId));
   }
 
   async getProjectFeedbackScore(projectId: string): Promise<{ score: number; count: number }> {
-    const result = await db.select({
-      avg: drizzleSql<number>`COALESCE(AVG(rating), 0)`,
-      count: drizzleSql<number>`count(*)::int`
-    })
+    // Get all responses for this project
+    const allResponses = await this.dbInstance.select()
       .from(schema.surveyResponses)
       .where(eq(schema.surveyResponses.projectId, projectId));
-    
+
+    if (allResponses.length === 0) {
+      return { score: 0, count: 0 };
+    }
+
+    // Count unique surveys (group by sessionId in metadata)
+    const sessionIds = new Set<string>();
+    allResponses.forEach(r => {
+      if (r.metadata && typeof r.metadata === 'object' && 'sessionId' in r.metadata) {
+        const sessionId = (r.metadata as any).sessionId;
+        if (typeof sessionId === 'string') {
+          sessionIds.add(sessionId);
+        }
+      }
+    });
+
+    // If no sessionIds found, fall back to counting by unique questionId groups
+    // (assume responses within 5 minutes of each other are from same survey)
+    let uniqueSurveyCount = sessionIds.size;
+
+    if (uniqueSurveyCount === 0) {
+      // Group responses by time windows (5 minutes)
+      const timeGroups = new Map<number, Set<string>>();
+      allResponses.forEach(r => {
+        if (r.createdAt) {
+          const time = new Date(r.createdAt).getTime();
+          const window = Math.floor(time / (5 * 60 * 1000)); // 5-minute windows
+          if (!timeGroups.has(window)) {
+            timeGroups.set(window, new Set());
+          }
+          timeGroups.get(window)!.add(r.questionId);
+        }
+      });
+      uniqueSurveyCount = timeGroups.size;
+    }
+
+    // Calculate average score from numeric responses
+    const numericResponses = allResponses.filter(r => r.numericValue !== null && r.numericValue !== undefined);
+    const avg = numericResponses.length > 0
+      ? numericResponses.reduce((sum, r) => {
+          const value = typeof r.numericValue === 'string' ? parseFloat(r.numericValue) : Number(r.numericValue);
+          return sum + (isNaN(value) ? 0 : value);
+        }, 0) / numericResponses.length
+      : 0;
+
     return {
-      score: Number(result[0]?.avg || 0),
-      count: result[0]?.count || 0
+      score: Math.round(avg * 10) / 10,
+      count: uniqueSurveyCount, // Return count of unique surveys, not individual responses
     };
   }
 
   // Categories
   async getCategories(): Promise<Category[]> {
-    return await db.select().from(schema.categories);
+    return await this.dbInstance.select().from(schema.categories);
   }
 
   async getCategory(id: string): Promise<Category | undefined> {
-    const result = await db.select().from(schema.categories).where(eq(schema.categories.id, id)).limit(1);
+    const result = await this.dbInstance.select().from(schema.categories).where(eq(schema.categories.id, id)).limit(1);
     return result[0];
   }
 
   async createCategory(insertCategory: InsertCategory): Promise<Category> {
-    const result = await db.insert(schema.categories).values(insertCategory).returning();
+    const result = await this.dbInstance.insert(schema.categories).values(insertCategory).returning();
     return result[0];
   }
 
   // Category Metrics
   async getCategoryMetrics(categoryId: string): Promise<CategoryMetric[]> {
-    return await db.select().from(schema.categoryMetrics).where(eq(schema.categoryMetrics.categoryId, categoryId));
+    return await this.dbInstance.select().from(schema.categoryMetrics).where(eq(schema.categoryMetrics.categoryId, categoryId));
   }
 
   async getRecommendedMetrics(categoryId: string): Promise<CategoryMetric[]> {
-    return await db.select().from(schema.categoryMetrics)
+    return await this.dbInstance.select().from(schema.categoryMetrics)
       .where(and(
         eq(schema.categoryMetrics.categoryId, categoryId),
         eq(schema.categoryMetrics.isRecommended, true)
@@ -567,27 +827,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createCategoryMetric(insertMetric: InsertCategoryMetric): Promise<CategoryMetric> {
-    const result = await db.insert(schema.categoryMetrics).values(insertMetric).returning();
+    const result = await this.dbInstance.insert(schema.categoryMetrics).values(insertMetric).returning();
     return result[0];
   }
 
   // Project Metrics
   async getProjectMetrics(projectId: string): Promise<ProjectMetric[]> {
-    return await db.select().from(schema.projectMetrics).where(eq(schema.projectMetrics.projectId, projectId));
+    return await this.dbInstance.select().from(schema.projectMetrics).where(eq(schema.projectMetrics.projectId, projectId));
   }
 
   async createProjectMetric(insertMetric: InsertProjectMetric): Promise<ProjectMetric> {
-    const result = await db.insert(schema.projectMetrics).values(insertMetric).returning();
+    const result = await this.dbInstance.insert(schema.projectMetrics).values(insertMetric).returning();
     return result[0];
   }
 
   async deleteProjectMetric(id: string): Promise<boolean> {
-    const result = await db.delete(schema.projectMetrics).where(eq(schema.projectMetrics.id, id)).returning();
+    const result = await this.dbInstance.delete(schema.projectMetrics).where(eq(schema.projectMetrics.id, id)).returning();
     return result.length > 0;
   }
 
   async updateProjectMetric(id: string, updates: Partial<ProjectMetric>): Promise<ProjectMetric | undefined> {
-    const result = await db.update(schema.projectMetrics)
+    const result = await this.dbInstance.update(schema.projectMetrics)
       .set(updates)
       .where(eq(schema.projectMetrics.id, id))
       .returning();
@@ -595,4 +855,9 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+// PostgreSQL when DATABASE_URL is configured, otherwise in-memory.
+// The in-memory adapter is for local development and the test suite — its
+// contents are per-process, so it is not a deployment mode.
+export const storage = process.env.DATABASE_URL
+  ? new DatabaseStorage()
+  : new MemStorage();

@@ -1,11 +1,14 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { MessageSquare, BarChart3, Users, TrendingUp, Clock, CheckCircle2, QrCode, Download } from "lucide-react";
+import { MessageSquare, BarChart3, Users, TrendingUp, Clock, CheckCircle2, QrCode, Download, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
+import { getQueryFn } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Survey {
   id: string;
@@ -39,79 +42,52 @@ const downloadQRCode = (surveyId: string, surveyTitle: string) => {
 };
 
 export default function Feedback() {
+  const { user } = useAuth();
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
-  // Mock survey data
-  const mockSurveys: Survey[] = [
-    {
-      id: "1",
-      title: "Packaging Sustainability Feedback",
-      projectId: "1",
-      projectTitle: "100% Recycled Packaging Initiative",
-      status: "gathering",
-      responses: 67,
-      targetResponses: 100,
-      createdAt: "2024-10-15",
-      qrCodeUrl: `${window.location.origin}/survey/1`,
-      questions: [
-        "How satisfied are you with the sustainability of our packaging?",
-        "Would you prefer products with biodegradable packaging?",
-        "How important is recyclable packaging in your purchase decision?",
-      ],
-    },
-    {
-      id: "2",
-      title: "Solar Energy Consumer Trust Survey",
-      projectId: "2",
-      projectTitle: "Solar Panel Installation",
-      status: "completed",
-      responses: 150,
-      targetResponses: 150,
-      trustScore: 8.4,
-      satisfactionScore: 8.7,
-      npsScore: 72,
-      createdAt: "2024-09-20",
-      completedAt: "2024-10-01",
-      qrCodeUrl: `${window.location.origin}/survey/2`,
-      questions: [
-        "How aware are you of our renewable energy initiatives?",
-        "Do our energy-saving efforts influence your trust in our brand?",
-        "Would you recommend our brand based on our sustainability efforts?",
-      ],
-    },
-    {
-      id: "3",
-      title: "Local Sourcing Perception Study",
-      projectId: "3",
-      projectTitle: "Local Sourcing Program",
-      status: "completed",
-      responses: 203,
-      targetResponses: 200,
-      trustScore: 7.9,
-      satisfactionScore: 8.2,
-      npsScore: 65,
-      createdAt: "2024-09-01",
-      completedAt: "2024-09-25",
-      qrCodeUrl: `${window.location.origin}/survey/3`,
-      questions: [
-        "How important is local sourcing to you?",
-        "Do you value products with ethical supply chains?",
-        "How much do you trust our sourcing practices?",
-      ],
-    },
-  ];
+  // Fetch surveys from API
+  const { data: surveys = [], isLoading, error } = useQuery<Survey[]>({
+    queryKey: ['/api/surveys'],
+    queryFn: getQueryFn({ on401: "throw" }),
+    enabled: !!user,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Loading surveys...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <p className="text-lg font-semibold">Error Loading Surveys</p>
+          <p className="text-muted-foreground">Failed to load survey data. Please try again.</p>
+        </div>
+      </div>
+    );
+  }
+
 
   const filteredSurveys = filterStatus === "all"
-    ? mockSurveys
-    : mockSurveys.filter(s => s.status === filterStatus);
+    ? surveys
+    : surveys.filter(s => s.status === filterStatus);
 
   const stats = {
-    total: mockSurveys.length,
-    gathering: mockSurveys.filter(s => s.status === "gathering").length,
-    completed: mockSurveys.filter(s => s.status === "completed").length,
-    avgTrustScore: (mockSurveys
-      .filter(s => s.trustScore)
-      .reduce((acc, s) => acc + (s.trustScore || 0), 0) / mockSurveys.filter(s => s.trustScore).length).toFixed(1),
+    total: surveys.length,
+    gathering: surveys.filter(s => s.status === "gathering").length,
+    completed: surveys.filter(s => s.status === "completed").length,
+    avgTrustScore: surveys.filter(s => s.trustScore).length > 0
+      ? (surveys
+          .filter(s => s.trustScore)
+          .reduce((acc, s) => acc + (s.trustScore || 0), 0) / surveys.filter(s => s.trustScore).length).toFixed(1)
+      : "0.0",
   };
 
   return (
@@ -247,7 +223,7 @@ export default function Feedback() {
                     </Card>
                   )}
                   <div className="flex flex-col gap-2">
-                    <Link href={`/feedback/${survey.id}`}>
+                    <Link href={`/feedback/${survey.projectId}`}>
                       <Button variant="outline" size="sm" data-testid={`button-view-${survey.id}`}>
                         <BarChart3 className="h-4 w-4 mr-2" />
                         View Results
@@ -279,17 +255,23 @@ export default function Feedback() {
                   </div>
                   <div className="text-center p-3 rounded-lg bg-muted">
                     <TrendingUp className="h-5 w-5 mx-auto mb-1 text-primary" />
-                    <p className="text-2xl font-bold font-mono text-primary">{survey.trustScore}</p>
+                    <p className="text-2xl font-bold font-mono text-primary">
+                      {survey.trustScore !== undefined ? survey.trustScore.toFixed(1) : 'N/A'}
+                    </p>
                     <p className="text-xs text-muted-foreground">Trust Score</p>
                   </div>
                   <div className="text-center p-3 rounded-lg bg-muted">
                     <BarChart3 className="h-5 w-5 mx-auto mb-1 text-chart-3" />
-                    <p className="text-2xl font-bold font-mono text-chart-3">{survey.satisfactionScore}</p>
+                    <p className="text-2xl font-bold font-mono text-chart-3">
+                      {survey.satisfactionScore !== undefined ? survey.satisfactionScore.toFixed(1) : 'N/A'}
+                    </p>
                     <p className="text-xs text-muted-foreground">Satisfaction</p>
                   </div>
                   <div className="text-center p-3 rounded-lg bg-muted">
                     <MessageSquare className="h-5 w-5 mx-auto mb-1 text-chart-2" />
-                    <p className="text-2xl font-bold font-mono text-chart-2">{survey.npsScore}</p>
+                    <p className="text-2xl font-bold font-mono text-chart-2">
+                      {survey.npsScore !== undefined ? survey.npsScore : 'N/A'}
+                    </p>
                     <p className="text-xs text-muted-foreground">NPS Score</p>
                   </div>
                 </div>

@@ -34,6 +34,7 @@ export const projects = pgTable("projects", {
   roi: decimal("roi", { precision: 5, scale: 2 }).notNull(),
   co2Saved: decimal("co2_saved", { precision: 10, scale: 2 }),
   waterSaved: decimal("water_saved", { precision: 10, scale: 2 }),
+  impactScore: decimal("impact_score", { precision: 5, scale: 2 }),
   status: text("status").default("active"),
   assignedTo: varchar("assigned_to").references(() => users.id),
   startDate: timestamp("start_date"),
@@ -179,6 +180,9 @@ export const insertSurveyResponseSchema = createInsertSchema(surveyResponses).om
 export const insertGoalSchema = createInsertSchema(goals).omit({
   id: true,
   createdAt: true,
+}).extend({
+  // Dates arrive as strings over JSON; coerce so handlers always get a Date.
+  targetDate: z.coerce.date(),
 });
 
 export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({

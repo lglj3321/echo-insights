@@ -1,4 +1,4 @@
-import { Home, BarChart3, FolderKanban, Settings, Target, Users, ChevronUp, LogOut, GitCompare, MessageSquare } from "lucide-react";
+import { Home, FolderKanban, Settings, Target, Users, ChevronUp, LogOut, GitCompare, MessageSquare, QrCode, Trophy, Calculator } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/useAuth";
 
 const menuItems = [
   {
@@ -43,9 +44,19 @@ const menuItems = [
     icon: MessageSquare,
   },
   {
-    title: "Analytics",
-    url: "/analytics",
-    icon: BarChart3,
+    title: "QR Codes",
+    url: "/qr-codes",
+    icon: QrCode,
+  },
+  {
+    title: "Scorecard",
+    url: "/scorecard",
+    icon: Trophy,
+  },
+  {
+    title: "Impact Calculator",
+    url: "/calculator",
+    icon: Calculator,
   },
   {
     title: "Goals & Targets",
@@ -66,15 +77,13 @@ const menuItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const { user, logout, isLoggingOut } = useAuth();
 
-  const user = {
-    name: "Sarah Johnson",
-    email: "sarah.johnson@company.com",
-    role: "Sustainability Director",
-  };
+  const displayName = (user as any)?.fullName || (user as any)?.username || "User";
+  const displayEmail = (user as any)?.email || "";
 
   const handleSignOut = () => {
-    window.location.href = "/api/logout";
+            logout();
   };
 
   return (
@@ -109,24 +118,37 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground" data-testid="button-user-menu">
+                <button
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring disabled:pointer-events-none disabled:opacity-50 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                  data-testid="button-user-menu"
+                  type="button"
+                >
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                      {user.name.split(' ').map(n => n[0]).join('')}
+                      {displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col items-start flex-1 text-left min-w-0">
-                    <span className="text-sm font-medium truncate w-full">{user.name}</span>
-                    <span className="text-xs text-muted-foreground truncate w-full">{user.email}</span>
+                    <span className="text-sm font-medium truncate w-full">{displayName}</span>
+                    {displayEmail && (
+                      <span className="text-xs text-muted-foreground truncate w-full">{displayEmail}</span>
+                    )}
                   </div>
                   <ChevronUp className="ml-auto h-4 w-4" />
-                </SidebarMenuButton>
+                </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" className="w-56">
+              <DropdownMenuContent
+                side="top"
+                align="end"
+                sideOffset={8}
+                className="w-56 z-[100]"
+              >
                 <DropdownMenuLabel>
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium">{user.name}</p>
-                    <p className="text-xs text-muted-foreground">{user.email}</p>
+                    <p className="text-sm font-medium">{displayName}</p>
+                    {displayEmail && (
+                      <p className="text-xs text-muted-foreground">{displayEmail}</p>
+                    )}
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -137,9 +159,14 @@ export function AppSidebar() {
                   </a>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut} data-testid="button-sign-out">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Sign Out
+                <DropdownMenuItem
+                  onClick={handleSignOut}
+                  disabled={isLoggingOut}
+                  data-testid="button-sign-out"
+                  className={isLoggingOut ? "opacity-50 cursor-not-allowed" : ""}
+                >
+                  <LogOut className={`mr-2 h-4 w-4 ${isLoggingOut ? "animate-pulse" : ""}`} />
+                  {isLoggingOut ? "Signing out..." : "Sign Out"}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
