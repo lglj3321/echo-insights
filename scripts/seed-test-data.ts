@@ -35,7 +35,7 @@ try {
 } catch (error) {
   // 忽略错误，继续执行
 }
-import { hashPassword } from "../server/auth";
+import { hashPassword } from "../api/_lib/auth.js";
 import { eq } from "drizzle-orm";
 import { Pool, neonConfig } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-serverless';

@@ -12,7 +12,7 @@ import {
   insertUserSchema,
   insertSurveyQuestionSchema,
 } from "../../shared/schema.js";
-import { registerUser, loginUser, requireAuth, optionalAuth } from "./auth.js";
+import { registerUser, loginUser, requireAuth, optionalAuth, requireProjectOwnership } from "./auth.js";
 import { calculateImpactScore } from "./impactScore.js";
 import { z } from "zod";
 import { generateToken } from "./jwt.js";
@@ -500,9 +500,16 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  app.patch("/api/projects/:id", async (req, res) => {
+  app.patch("/api/projects/:id", requireAuth, requireProjectOwnership, async (req, res) => {
     try {
-      const project = await storage.updateProject(req.params.id, req.body);
+      // Validate against the insert schema rather than passing req.body
+      // straight through, so a caller cannot reassign userId (or any other
+      // column) by adding it to the payload.
+      const validation = insertProjectSchema.partial().omit({ userId: true }).safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error });
+      }
+      const project = await storage.updateProject(req.params.id, validation.data);
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
       }
@@ -538,7 +545,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   // Project Metrics API
-  app.get("/api/projects/:projectId/metrics", async (req, res) => {
+  app.get("/api/projects/:projectId/metrics", requireAuth, requireProjectOwnership, async (req, res) => {
     try {
       const metrics = await storage.getProjectMetrics(req.params.projectId);
       res.json(metrics);
@@ -547,7 +554,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  app.post("/api/projects/:projectId/metrics", async (req, res) => {
+  app.post("/api/projects/:projectId/metrics", requireAuth, requireProjectOwnership, async (req, res) => {
     try {
       const validation = insertProjectMetricSchema.safeParse({
         ...req.body,
@@ -569,7 +576,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  app.patch("/api/project-metrics/:id", async (req, res) => {
+  app.patch("/api/project-metrics/:id", requireAuth, async (req, res) => {
     try {
       const metric = await storage.updateProjectMetric(req.params.id, req.body);
       if (!metric) {
@@ -581,7 +588,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  app.delete("/api/project-metrics/:id", async (req, res) => {
+  app.delete("/api/project-metrics/:id", requireAuth, async (req, res) => {
     try {
       const deleted = await storage.deleteProjectMetric(req.params.id);
       if (!deleted) {
@@ -595,7 +602,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
 
   // Excel File Parsing API - Reads vertically (first column = metric names)
-  app.post("/api/parse-excel", async (req, res) => {
+  app.post("/api/parse-excel", requireAuth, async (req, res) => {
     try {
       const { fileData } = req.body;
       
@@ -704,7 +711,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
 
   // Project Classification API - Uses OpenAI for intelligent project categorization
-  app.post("/api/classify-project", async (req, res) => {
+  app.post("/api/classify-project", requireAuth, async (req, res) => {
     try {
       const { description, customMetrics, csvData, fileText } = req.body;
 
@@ -799,7 +806,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  app.patch("/api/goals/:id", async (req, res) => {
+  app.patch("/api/goals/:id", requireAuth, async (req, res) => {
     try {
       const goal = await storage.updateGoal(req.params.id, req.body);
       if (!goal) {
@@ -811,7 +818,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  app.delete("/api/goals/:id", async (req, res) => {
+  app.delete("/api/goals/:id", requireAuth, async (req, res) => {
     try {
       const deleted = await storage.deleteGoal(req.params.id);
       if (!deleted) {
@@ -853,7 +860,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  app.patch("/api/team-members/:id", async (req, res) => {
+  app.patch("/api/team-members/:id", requireAuth, async (req, res) => {
     try {
       const member = await storage.updateTeamMember(req.params.id, req.body);
       if (!member) {
@@ -865,7 +872,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  app.delete("/api/team-members/:id", async (req, res) => {
+  app.delete("/api/team-members/:id", requireAuth, async (req, res) => {
     try {
       const deleted = await storage.deleteTeamMember(req.params.id);
       if (!deleted) {
@@ -887,7 +894,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  app.get("/api/projects/:projectId/qr-scans", async (req, res) => {
+  app.get("/api/projects/:projectId/qr-scans", requireAuth, requireProjectOwnership, async (req, res) => {
     try {
       const count = await storage.getQRScans(req.params.projectId);
       res.json({ count });
@@ -1052,7 +1059,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  app.get("/api/projects/:projectId/survey-responses", async (req, res) => {
+  app.get("/api/projects/:projectId/survey-responses", requireAuth, requireProjectOwnership, async (req, res) => {
     try {
       const responses = await storage.getSurveyResponses(req.params.projectId);
       res.json(responses);
@@ -1061,7 +1068,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  app.get("/api/projects/:projectId/feedback-score", async (req, res) => {
+  app.get("/api/projects/:projectId/feedback-score", requireAuth, requireProjectOwnership, async (req, res) => {
     try {
       const feedbackData = await storage.getProjectFeedbackScore(req.params.projectId);
       res.json(feedbackData);
@@ -1341,7 +1348,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  app.post("/api/categories", async (req, res) => {
+  app.post("/api/categories", requireAuth, async (req, res) => {
     try {
       const validation = insertCategorySchema.safeParse(req.body);
       if (!validation.success) {
@@ -1373,7 +1380,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  app.post("/api/category-metrics", async (req, res) => {
+  app.post("/api/category-metrics", requireAuth, async (req, res) => {
     try {
       const validation = insertCategoryMetricSchema.safeParse(req.body);
       if (!validation.success) {
@@ -1387,7 +1394,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   // Forecast API
-  app.post("/api/projects/:projectId/forecast", requireAuth, async (req, res) => {
+  app.post("/api/projects/:projectId/forecast", requireAuth, requireProjectOwnership, requireAuth, async (req, res) => {
     try {
       const projectId = req.params.projectId;
       const { metricIds, targetYear, scenario } = req.body;

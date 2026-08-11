@@ -8,7 +8,10 @@ import { FolderKanban, Users, TrendingUp, Leaf, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getQueryFn } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import type { Project } from "@/components/ProjectCard";
+// The API returns schema records (decimals as strings, plus createdAt); the
+// presentation components take a narrower view-model. Keep them distinct so
+// fields like createdAt survive the mapping below.
+import type { Project } from "@shared/schema";
 
 interface DashboardStats {
   totalProjects: number;

@@ -4,3 +4,11 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Vercel
+.vercel
+
+# Local configuration — copy .env.example to .env, never commit the result
+.env
+.env.*
+!.env.example

@@ -1,27 +1,16 @@
 {
-  "name": "rest-express",
+  "name": "echo-insights",
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "PORT=3000 NODE_ENV=development tsx server/index.ts",
+    "dev": "NODE_ENV=development tsx server/dev.ts",
     "build": "vite build",
-    "start": "NODE_ENV=production node dist/index.js",
+    "start": "NODE_ENV=production tsx server/dev.ts",
     "check": "tsc",
+    "test": "vitest run",
     "db:push": "drizzle-kit push",
-    "db:clear": "tsx scripts/clear-database.ts",
-    "test": "tsx scripts/test-all.ts",
-    "test:workflow": "tsx scripts/test-workflow.ts",
-    "test:seed": "tsx scripts/seed-test-data.ts",
-    "test:seed:memory": "tsx scripts/seed-test-data-memory.ts",
-    "test:data": "tsx scripts/testdata.ts",
-    "test:check": "tsx scripts/check-server.ts",
-    "setup:env": "tsx scripts/setup-env.ts",
-    "seed:forecast": "tsx scripts/seed-forecast-data.ts",
-    "seed:trend": "tsx scripts/seed-feedback-trend-data.ts",
-    "seed:workflow": "tsx scripts/seed-complete-workflow.ts",
-    "seed:workflow:memory": "tsx scripts/seed-complete-workflow-memory.ts",
-    "seed:demo": "tsx scripts/seed-demo-data.ts"
+    "db:seed": "tsx scripts/seed-test-data.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -120,6 +109,7 @@
     "@types/passport-local": "^1.0.38",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
+    "@types/supertest": "^7.2.1",
     "@types/ws": "^8.5.13",
     "@vercel/node": "^5.5.6",
     "@vitejs/plugin-react": "^4.7.0",
@@ -127,10 +117,12 @@
     "drizzle-kit": "^0.31.4",
     "esbuild": "^0.25.0",
     "postcss": "^8.4.47",
+    "supertest": "^7.2.2",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.20.5",
     "typescript": "5.6.3",
-    "vite": "^5.4.20"
+    "vite": "^5.4.20",
+    "vitest": "^4.1.10"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"

@@ -58,7 +58,7 @@ export default function SurveyResults() {
   const surveyId = params?.id;
 
   // Fetch survey results from API with auto-refresh
-  const { data: survey, isLoading: isLoadingSurvey, error: surveyError, refetch } = useQuery({
+  const { data: survey, isLoading: isLoadingSurvey, error: surveyError, refetch, isFetching } = useQuery({
     queryKey: ['/api/surveys', surveyId, 'results'],
     queryFn: async () => {
       if (!surveyId) throw new Error("Survey ID is required");
@@ -221,7 +221,7 @@ export default function SurveyResults() {
             <Badge variant={survey.status === "completed" ? "secondary" : "outline"}>
               {survey.status === "completed" ? "Completed" : "Gathering"}
             </Badge>
-            {refetch && (
+            {isFetching && (
               <Badge variant="outline" className="text-xs">
                 Auto-refreshing...
               </Badge>

@@ -4,16 +4,13 @@ import { insertUserSchema } from "../../shared/schema.js";
 import type { Request, Response, NextFunction } from "express";
 import { extractToken, verifyToken } from "./jwt.js";
 
-// 确保 Express Request 类型扩展已加载（从 jwt.ts）
-// 类型定义在 jwt.ts 中，这里只是确保导入
+// The Express Request augmentation carrying `req.user` lives in jwt.ts.
 
-// 密码哈希
 export async function hashPassword(password: string): Promise<string> {
   const saltRounds = 10;
   return await bcrypt.hash(password, saltRounds);
 }
 
-// 验证密码
 export async function verifyPassword(
   password: string,
   hashedPassword: string
@@ -21,7 +18,7 @@ export async function verifyPassword(
   return await bcrypt.compare(password, hashedPassword);
 }
 
-// 认证中间件 - 检查用户是否已登录（使用 JWT）
+/** Rejects the request unless it carries a valid JWT for an existing user. */
 export async function requireAuth(
   req: Request,
   res: Response,
@@ -63,7 +60,11 @@ export async function requireAuth(
   }
 }
 
-// 可选认证中间件 - 如果已登录则设置 req.user
+/**
+ * Attaches `req.user` when a valid token is present, but lets anonymous
+ * requests through. Used on the consumer survey routes, which must work
+ * without an account.
+ */
 export async function optionalAuth(
   req: Request,
   res: Response,
@@ -88,13 +89,45 @@ export async function optionalAuth(
       }
     }
   } catch (error) {
-    // 忽略错误，继续执行（可选认证）
+    // Anonymous access is allowed here, so a bad token is not fatal.
   }
-  
+
   next();
 }
 
-// 用户注册
+/**
+ * Loads the project named by `:id`/`:projectId` and rejects the request unless
+ * the caller owns it, then hands the project on via `res.locals.project`.
+ *
+ * Mount after requireAuth. Centralising the check keeps every mutating route
+ * consistent — an earlier revision applied it ad hoc and several routes were
+ * left reachable without any credentials at all.
+ */
+export async function requireProjectOwnership(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  const projectId = req.params.projectId ?? req.params.id;
+  if (!projectId) {
+    res.status(400).json({ error: "Project id is required" });
+    return;
+  }
+
+  const project = await storage.getProject(projectId);
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+  if (project.userId !== req.user!.id) {
+    res.status(403).json({ error: "Forbidden: you do not own this project" });
+    return;
+  }
+
+  res.locals.project = project;
+  next();
+}
+
 export async function registerUser(
   username: string,
   password: string,
