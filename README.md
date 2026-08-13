@@ -179,9 +179,12 @@ adapter, so CI needs no database and no secrets.
   directly — appropriate in development, unsuitable for production data.
   Generated migrations are the outstanding item before this carries data that
   matters.
-- **Figures are illustrative.** Seeded metrics and the impact calculator's
-  conversion factors demonstrate the interface; they are not audited
-  environmental reporting and should not be used for disclosure.
+- **Scoring benchmarks are unsourced.** `api/_lib/impactScore.ts` normalises
+  each metric against a hardcoded benchmark — a CO₂ ceiling of 50 tons, a water
+  target of 50,000 litres and so on. Those thresholds are plausible rather than
+  traceable to a published standard, and benchmark matching is keyword-based on
+  the metric name, so an unusual name can be scored against the wrong scale.
+  Nothing here is audited environmental reporting.
 - **Single client bundle.** ~1.1 MB, not yet code-split.
 - **In-memory storage is not a deployment mode.** It exists for local
   development and tests; in a serverless environment its contents are
@@ -190,7 +193,8 @@ adapter, so CI needs no database and no secrets.
 ## Roadmap
 
 - Generated, reviewable database migrations
-- Persist response timestamps so sentiment trends cover real history
+- Source the scoring benchmarks from a published standard and version them
+- Unit tests for the scoring and forecasting modules
 - Code-split the client bundle
 - Rate limiting on the anonymous survey endpoints
 
