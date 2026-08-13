@@ -1,13 +1,13 @@
 # Echo Insights — 产品功能与技术栈报告（中文版）
 
 > **历史文档。** 撰写于 2025 年 11 月，当时项目正部署运行，本文记录的是那个时点的产品设计。
-> Vercel 部署此后已下线，文中部分表述不再符合当前仓库现状——以
+> 文中描述的部署目前仍在运行，但部分表述已不符合当前仓库现状——以
 > [README](../README.md) 和[架构说明](architecture.md)为准。
 
 **产品名称**: Echo Insights  
 **版本**: 1.0.0  
 **报告日期**: 2025年11月  
-**撰写时部署状态**: Vercel + Neon PostgreSQL（此后已下线）  
+**部署状态**: Vercel + Neon PostgreSQL（仍在运行）  
 **认证方式**: JWT (JSON Web Token)
 
 ---
@@ -885,7 +885,7 @@ Echo Insights 是一个可持续性项目管理平台的可运行原型，基于
 
 1. **核心闭环已实现**: 从项目录入到消费者反馈回流
 2. **现代技术栈**: React、TypeScript、Drizzle、serverless PostgreSQL
-3. **演示部署**: Vercel + Neon（部署此后已下线）
+3. **演示部署**: Vercel + Neon，自 2025 年 11 月起持续运行
 4. **类型安全**: schema 派生的类型在前后端共享
 5. **AI 辅助分类**: 未配置模型端点时回退到关键词匹配
 6. **影响力评分**: 基于各指标基准的 sigmoid 归一化

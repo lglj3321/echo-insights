@@ -16,6 +16,10 @@ collected anonymously through QR-code surveys printed on the product.
 
 Built as a full-stack serverless application on Vercel and Neon PostgreSQL.
 
+**▶ [Try the live demo](https://eco-feedback-engine-mlqh.vercel.app)** — sign up
+with any username; the account is yours and starts empty, so you can create a
+project, generate its QR code and answer the survey from your phone.
+
 ![Dashboard](docs/images/dashboard.png)
 
 ## How it works
@@ -193,12 +197,14 @@ adapter, so CI needs no database and no secrets.
 ## Background
 
 Echo Insights was built for *Applied Project in Enterprise Cloud Design and
-Development*, a university course, and deployed to Vercel with a Neon PostgreSQL
-backend for demonstration. That deployment has since been retired, so there is
-no public demo URL; the repository is maintained as a portfolio piece. See
-[docs/architecture.md](docs/architecture.md) for the deployment topology and
-[docs/product-report.md](docs/product-report.md) for the original product
-write-up.
+Development*, a university course, and has run on Vercel with a Neon PostgreSQL
+backend since November 2025. It is maintained as a portfolio piece rather than
+a supported service — see [Engineering notes](#engineering-notes) for what that
+means in practice.
+
+See [docs/architecture.md](docs/architecture.md) for the deployment topology and
+the decisions behind it, and [docs/product-report.md](docs/product-report.md)
+for the original product write-up.
 
 ## License
 

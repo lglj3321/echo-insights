@@ -2,14 +2,14 @@
 
 > **Historical document.** Written in November 2025 while the project was
 > deployed for demonstration. It records the product as designed at that point.
-> The Vercel deployment has since been retired and several statements below no
-> longer describe the current repository — see the [README](../README.md) and
+> The deployment described here is still running, but several statements below
+> no longer describe the current repository — see the [README](../README.md) and
 > [architecture notes](architecture.md) for the maintained description.
 
 **Product Name**: Echo Insights  
 **Version**: 1.0.0  
 **Report Date**: November 2025  
-**Deployment at time of writing**: Vercel + Neon PostgreSQL (since retired)  
+**Deployment**: Vercel + Neon PostgreSQL (still running)  
 **Authentication**: JWT (JSON Web Token)
 
 ---
@@ -890,7 +890,7 @@ demonstration.
 
 1. **Core loop implemented**: project intake through to consumer feedback
 2. **Modern stack**: React, TypeScript, Drizzle, serverless PostgreSQL
-3. **Deployed for demonstration**: Vercel + Neon (deployment since retired)
+3. **Deployed for demonstration**: Vercel + Neon, running since November 2025
 4. **Type safety**: schema-derived types shared between client and server
 5. **AI-assisted classification**: with a keyword fallback when unconfigured
 6. **Impact scoring**: sigmoid normalisation against per-metric benchmarks
