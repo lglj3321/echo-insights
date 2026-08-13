@@ -169,6 +169,9 @@ rather than failing.
 
 ## Deploying
 
+The live deployment is <https://echoinsights.vercel.app>, built from `main` on
+every push. An earlier `.vercel.app` hostname 308-redirects to it.
+
 ```bash
 vercel link
 vercel env add DATABASE_URL     # Neon pooled connection string

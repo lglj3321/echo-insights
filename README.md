@@ -16,9 +16,9 @@ collected anonymously through QR-code surveys printed on the product.
 
 Built as a full-stack serverless application on Vercel and Neon PostgreSQL.
 
-**▶ [Try the live demo](https://eco-feedback-engine-mlqh.vercel.app)** — sign up
-with any username; the account is yours and starts empty, so you can create a
-project, generate its QR code and answer the survey from your phone.
+**▶ [Try the live demo](https://echoinsights.vercel.app)** — sign up with any
+username; the account is yours and starts empty, so you can create a project,
+generate its QR code and answer the survey from your phone.
 
 ![Dashboard](docs/images/dashboard.png)
 
