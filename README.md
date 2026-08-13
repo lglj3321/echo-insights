@@ -1,6 +1,6 @@
 # Echo Insights
 
-[![CI](https://github.com/lglj3321/EcoFeedbackEngine/actions/workflows/ci.yml/badge.svg)](https://github.com/lglj3321/EcoFeedbackEngine/actions/workflows/ci.yml)
+[![CI](https://github.com/lglj3321/echo-insights/actions/workflows/ci.yml/badge.svg)](https://github.com/lglj3321/echo-insights/actions/workflows/ci.yml)
 
 **Sustainability analytics for food companies — operational impact and consumer
 sentiment, scored side by side.**
