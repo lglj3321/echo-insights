@@ -1,9 +1,15 @@
-# EcoFeedbackEngine Product Features & Tech Stack Report (English)
+# Echo Insights — Product & Tech Stack Report
 
-**Product Name**: EcoFeedbackEngine (Echo Insights)  
+> **Historical document.** Written in November 2025 while the project was
+> deployed for demonstration. It records the product as designed at that point.
+> The Vercel deployment has since been retired and several statements below no
+> longer describe the current repository — see the [README](../README.md) and
+> [architecture notes](architecture.md) for the maintained description.
+
+**Product Name**: Echo Insights  
 **Version**: 1.0.0  
-**Release Date**: November 2025  
-**Deployment Status**: ✅ Deployed to Vercel + Neon PostgreSQL  
+**Report Date**: November 2025  
+**Deployment at time of writing**: Vercel + Neon PostgreSQL (since retired)  
 **Authentication**: JWT (JSON Web Token)
 
 ---
@@ -27,7 +33,7 @@
 
 ### Product Positioning
 
-EcoFeedbackEngine is a comprehensive sustainability project management platform designed for food companies and organizations committed to environmental responsibility. The platform enables businesses to track, manage, and measure the impact of their sustainability initiatives while engaging with consumers through surveys and feedback collection.
+Echo Insights is a comprehensive sustainability project management platform designed for food companies and organizations committed to environmental responsibility. The platform enables businesses to track, manage, and measure the impact of their sustainability initiatives while engaging with consumers through surveys and feedback collection.
 
 ### Target Users
 
@@ -795,26 +801,17 @@ npm run db:push      # Push database migrations
 
 #### Testing
 ```bash
-npm run test              # Full test (includes data generation)
-npm run test:workflow     # Workflow testing
-npm run test:seed         # Generate test data (database)
-npm run test:seed:memory  # Generate test data (memory)
-npm run test:data         # Generate complete test data
-npm run test:check        # Check server status
+npm test             # Vitest integration tests (in-memory adapter)
 ```
 
-#### Data Generation
+#### Seeding
 ```bash
-npm run seed:forecast      # Generate forecast test data
-npm run seed:trend         # Generate feedback trend test data
-npm run seed:workflow      # Generate complete workflow data (database)
-npm run seed:workflow:memory # Generate complete workflow data (memory)
+npm run db:seed      # Populate a configured database with sample data
 ```
 
-#### Environment Setup
-```bash
-npm run setup:env          # Interactive environment variable setup
-```
+> The data-generation and environment-setup scripts listed in the original
+> version of this report were removed: they referenced files that no longer
+> exist. `npm run` lists the current set.
 
 ---
 
@@ -887,18 +884,21 @@ npm run setup:env          # Interactive environment variable setup
 
 ## Summary
 
-EcoFeedbackEngine is a feature-complete, technologically advanced sustainability project management platform. The product has been successfully deployed to production with the following characteristics:
+Echo Insights is a working prototype of a sustainability project management
+platform, built on a modern TypeScript stack and deployed serverless for
+demonstration.
 
-1. **Feature Complete**: All core features implemented
-2. **Technologically Advanced**: Modern technology stack
-3. **Successfully Deployed**: Vercel + Neon production deployment
-4. **Code Quality**: TypeScript type safety
-5. **User Experience**: Modern UI, smooth interactions
-6. **AI Integration**: Intelligent classification and recommendations
-7. **Data Analytics**: Scientific Impact Score calculation
-8. **Forecast Features**: Advanced forecasting algorithms
+1. **Core loop implemented**: project intake through to consumer feedback
+2. **Modern stack**: React, TypeScript, Drizzle, serverless PostgreSQL
+3. **Deployed for demonstration**: Vercel + Neon (deployment since retired)
+4. **Type safety**: schema-derived types shared between client and server
+5. **AI-assisted classification**: with a keyword fallback when unconfigured
+6. **Impact scoring**: sigmoid normalisation against per-metric benchmarks
+7. **Forecasting**: projections from recorded metrics
 
-**The product is ready for production use!** 🚀
+**Not a production service.** It has no multi-tenant hardening, no schema
+migration story, and no observability. The [README](../README.md) states the
+current limitations in full.
 
 ---
 

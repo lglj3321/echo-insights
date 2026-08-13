@@ -1,9 +1,13 @@
-# EcoFeedbackEngine 产品功能介绍与技术栈报告（中文版）
+# Echo Insights — 产品功能与技术栈报告（中文版）
 
-**产品名称**: EcoFeedbackEngine (Echo Insights)  
+> **历史文档。** 撰写于 2025 年 11 月，当时项目正部署运行，本文记录的是那个时点的产品设计。
+> Vercel 部署此后已下线，文中部分表述不再符合当前仓库现状——以
+> [README](../README.md) 和[架构说明](architecture.md)为准。
+
+**产品名称**: Echo Insights  
 **版本**: 1.0.0  
-**发布日期**: 2025年11月  
-**部署状态**: ✅ 已部署到 Vercel + Neon PostgreSQL  
+**报告日期**: 2025年11月  
+**撰写时部署状态**: Vercel + Neon PostgreSQL（此后已下线）  
 **认证方式**: JWT (JSON Web Token)
 
 ---
@@ -27,7 +31,7 @@
 
 ### 产品定位
 
-EcoFeedbackEngine 是一个面向食品公司和环保组织的可持续性项目管理平台。该平台帮助企业跟踪、管理和衡量其可持续性举措的影响，同时通过调查和反馈收集与消费者互动。
+Echo Insights 是一个面向食品公司和环保组织的可持续性项目管理平台。该平台帮助企业跟踪、管理和衡量其可持续性举措的影响，同时通过调查和反馈收集与消费者互动。
 
 ### 目标用户
 
@@ -795,26 +799,16 @@ npm run db:push      # 推送数据库迁移
 
 #### 测试
 ```bash
-npm run test              # 完整测试（包含数据生成）
-npm run test:workflow     # 工作流测试
-npm run test:seed         # 生成测试数据（数据库）
-npm run test:seed:memory  # 生成测试数据（内存）
-npm run test:data         # 生成完整测试数据
-npm run test:check        # 检查服务器状态
+npm test             # Vitest 集成测试（内存存储适配器）
 ```
 
-#### 数据生成
+#### 数据填充
 ```bash
-npm run seed:forecast      # 生成预测测试数据
-npm run seed:trend         # 生成反馈趋势测试数据
-npm run seed:workflow      # 生成完整工作流数据（数据库）
-npm run seed:workflow:memory # 生成完整工作流数据（内存）
+npm run db:seed      # 向已配置的数据库灌入示例数据
 ```
 
-#### 环境设置
-```bash
-npm run setup:env          # 交互式环境变量设置
-```
+> 本报告原始版本中列出的数据生成与环境设置脚本已被移除——它们指向的文件已不存在。
+> 当前可用脚本以 `npm run` 输出为准。
 
 ---
 
@@ -887,18 +881,17 @@ npm run setup:env          # 交互式环境变量设置
 
 ## 总结
 
-EcoFeedbackEngine 是一个功能完整、技术先进的可持续性项目管理平台。产品已成功部署到生产环境，具备以下特点：
+Echo Insights 是一个可持续性项目管理平台的可运行原型，基于现代 TypeScript 技术栈，以 serverless 方式部署用于演示。
 
-1. **功能完整**: 所有核心功能已实现
-2. **技术先进**: 使用现代化技术栈
-3. **部署成功**: Vercel + Neon 生产级部署
-4. **代码质量**: TypeScript 类型安全
-5. **用户体验**: 现代化 UI，流畅交互
-6. **AI 集成**: 智能分类和推荐
-7. **数据分析**: 科学的 Impact Score 计算
-8. **预测功能**: 高级预测算法
+1. **核心闭环已实现**: 从项目录入到消费者反馈回流
+2. **现代技术栈**: React、TypeScript、Drizzle、serverless PostgreSQL
+3. **演示部署**: Vercel + Neon（部署此后已下线）
+4. **类型安全**: schema 派生的类型在前后端共享
+5. **AI 辅助分类**: 未配置模型端点时回退到关键词匹配
+6. **影响力评分**: 基于各指标基准的 sigmoid 归一化
+7. **预测功能**: 基于已记录指标的推演
 
-**产品已准备好用于生产环境！** 🚀
+**这不是生产级服务。** 它没有多租户加固、没有 schema 迁移方案、没有可观测性。完整的现状限制见 [README](../README.md)。
 
 ---
 
